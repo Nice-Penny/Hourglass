@@ -2832,40 +2832,19 @@
                 
                 return `
                     <div class="category-card-wrapper">
-                        <div class="category-item-container" style="position: relative;">
-                            <button
-                                class="category-card ${isSelected ? 'active' : ''}"
-                                onclick="selectCategory('${category.id}')"
-                                style="border-color: ${isSelected ? category.color : 'transparent'}; background-color: ${isSelected ? category.color + '15' : 'white'}; width: 100%;"
-                            >
-                                <span class="category-icon">${category.icon}</span>
-                                <span class="category-name">${category.name}</span>
-                            </button>
-                            <div class="category-actions">
-                                <button class="edit-category-btn" onclick="event.stopPropagation(); editCategory('${category.id}')" title="Edit category">✏️</button>
-                                <button class="delete-category-btn" onclick="event.stopPropagation(); deleteCategory('${category.id}')" title="Delete category">🗑️</button>
-                            </div>
-                        </div>
-                        ${isSelected ? `
+                        <button
+                            class="category-card ${isSelected ? 'active' : ''}"
+                            onclick="selectCategory('${category.id}')"
+                            style="border-color: ${isSelected ? category.color : 'transparent'}; background-color: ${isSelected ? category.color + '15' : 'white'};"
+                        >
+                            <span class="category-icon">${category.icon}</span>
+                            <span class="category-name">${category.name}</span>
+                        </button>
+                        ${isSelected && subs.length > 0 ? `
                             <div class="subcategory-panel">
-                                <label>📂 Subcategory (optional)</label>
                                 <select onchange="selectSubcategory(this.value)" ${activeTimer ? 'disabled' : ''}>
                                     ${subOptions}
                                 </select>
-                                ${!activeTimer && (customSubcategories[category.id]?.length > 0) ? `
-                                    <div class="custom-subs-list">
-                                        <div class="custom-subs-list-title">Your custom subcategories:</div>
-                                        ${customSubcategories[category.id].map(sub => `
-                                            <div class="custom-sub-item">
-                                                <span>${sub}</span>
-                                                <div class="custom-sub-actions">
-                                                    <button class="edit-sub-btn" onclick="editCustomSubcategory('${category.id}', '${sub.replace(/'/g, "\\'")}')">✏️</button>
-                                                    <button class="delete-sub-btn" onclick="deleteCustomSubcategory('${category.id}', '${sub.replace(/'/g, "\\'")}')">🗑️</button>
-                                                </div>
-                                            </div>
-                                        `).join('')}
-                                    </div>
-                                ` : ''}
                             </div>
                         ` : ''}
                     </div>
