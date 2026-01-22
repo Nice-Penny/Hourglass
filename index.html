@@ -472,41 +472,51 @@
 
         .categories-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-            gap: 15px;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 12px;
         }
 
         .category-card {
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 20px;
-            border: 3px solid transparent;
-            border-radius: 12px;
+            padding: 14px 10px 12px;
+            border: 2px solid #f0f0f0;
+            border-radius: 16px;
             background: white;
             cursor: pointer;
             transition: all 0.3s;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
         }
 
         .category-card:hover {
             transform: translateY(-3px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+            border-color: #e0e0e0;
         }
 
         .category-card.active {
-            transform: scale(1.05);
+            transform: scale(1.02);
+            border-color: transparent;
         }
 
         .category-icon {
-            font-size: 2rem;
+            font-size: 1.6rem;
             margin-bottom: 8px;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            border-radius: 14px;
         }
 
         .category-name {
-            font-size: 0.9rem;
+            font-size: 0.8rem;
             font-weight: 600;
-            color: #1f2937;
+            color: #374151;
+            text-align: center;
         }
 
         .subcategory-panel {
@@ -1516,11 +1526,14 @@
             }
 
             .category-icon {
-                font-size: 1.8rem;
+                font-size: 1.4rem;
+                width: 42px;
+                height: 42px;
+                border-radius: 12px;
             }
 
             .category-name {
-                font-size: 0.8rem;
+                font-size: 0.7rem;
             }
 
             .timer-controls {
@@ -2531,6 +2544,7 @@
             { id: 'learning', name: 'Learning', color: '#10b981', icon: '📚', isCustom: false, subcategories: ['Academic learning', 'Skill training', 'Online course', 'Language study'] },
             { id: 'reading', name: 'Reading', color: '#6366f1', icon: '📖', isCustom: false, subcategories: ['Books', 'Articles', 'News', 'Research'] },
             { id: 'sports', name: 'Sports', color: '#f59e0b', icon: '🏃', isCustom: false, subcategories: ['Running', 'Gym', 'Swimming', 'Cycling', 'Yoga'] },
+            { id: 'daily', name: 'Daily Routine', color: '#ec4899', icon: '🌅', isCustom: false, subcategories: ['Morning routine', 'Meals', 'Commute', 'Personal care', 'Errands'] },
             { id: 'housework', name: 'Housework', color: '#14b8a6', icon: '🏠', isCustom: false, subcategories: ['Cleaning', 'Cooking', 'Laundry', 'Shopping'] },
             { id: 'entertainment', name: 'Entertainment', color: '#ef4444', icon: '🎮', isCustom: false, subcategories: ['Gaming', 'Movies', 'Music', 'Social media'] },
             { id: 'social', name: 'Social', color: '#8b5cf6', icon: '👥', isCustom: false, subcategories: ['Family', 'Friends', 'Dating', 'Networking'] },
@@ -2824,10 +2838,10 @@
                         <button
                             class="category-card ${isSelected ? 'active' : ''}"
                             onclick="selectCategory('${category.id}')"
-                            style="border-color: ${isSelected ? category.color : 'transparent'}; background-color: ${isSelected ? category.color + '15' : 'white'};"
+                            style="background: ${isSelected ? category.color + '15' : 'white'}; ${isSelected ? 'box-shadow: 0 6px 20px ' + category.color + '35;' : ''}"
                         >
-                            <span class="category-icon">${category.icon}</span>
-                            <span class="category-name">${category.name}</span>
+                            <span class="category-icon" style="background: ${category.color}20;">${category.icon}</span>
+                            <span class="category-name" style="color: ${isSelected ? category.color : '#374151'}">${category.name}</span>
                         </button>
                         ${isSelected && subs.length > 0 ? `
                             <div class="subcategory-panel">
