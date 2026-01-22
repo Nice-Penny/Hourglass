@@ -2,7 +2,7 @@
 const CACHE_NAME = 'hourglass-v1';
 const urlsToCache = [
   './',
-  './time-tracker.html',
+  './index.html',
   './manifest.json'
 ];
 
@@ -58,3 +58,4 @@ self.addEventListener('fetch', event => {
       })
   );
 });
+
