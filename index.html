@@ -718,6 +718,10 @@
 
         /* ---------------- Utility ---------------- */
         .hidden { display: none !important; }
+        .pw-wrap { position: relative; }
+        .pw-wrap input { padding-right: 44px; }
+        .pw-toggle { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); width: 30px; height: 30px; border: none; background: transparent; cursor: pointer; font-size: 1rem; opacity: 0.7; border-radius: 6px; }
+        .pw-toggle:hover { opacity: 1; background: var(--surface-2); }
 
         /* ---------------- Responsive ---------------- */
         @media (min-width: 720px) {
@@ -743,6 +747,50 @@
             .timer-controls .btn { flex: 1; min-width: 120px; }
         }
 
+
+        /* ===== Dark theme tokens ===== */
+        [data-theme="dark"] {
+            --bg:#0f1320; --bg-soft:#171c2b; --surface:#1b2130; --surface-2:#222a3b;
+            --border:#2c3548; --border-strong:#3a455c; --text:#e7ebf3; --text-soft:#b6c0d4; --text-muted:#8a94a8;
+            --primary:#6f8bff; --primary-dark:#5b78f0; --primary-soft:#232c46; --primary-ring:rgba(111,139,255,0.28);
+            --success:#34d27e; --success-soft:#16291f; --danger:#f87171; --danger-soft:#3a2330; --warning:#fbbf24;
+            --shadow-sm:0 1px 2px rgba(0,0,0,.35); --shadow:0 6px 22px rgba(0,0,0,.4); --shadow-lg:0 18px 50px rgba(0,0,0,.55);
+        }
+        [data-theme="dark"] .timer-display { background: linear-gradient(180deg,var(--surface),var(--surface-2)); }
+        [data-theme="dark"] .view-toggle { background: rgba(20,24,38,.92); }
+        /* ===== Collapsible manual entry ===== */
+        .manual-entry-toggle { display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none; }
+        .me-caret { color:var(--text-muted); transition:transform .2s ease; font-size:.9rem; }
+        .manual-entry-section:not(.collapsed) .me-caret { transform:rotate(90deg); }
+        .manual-entry-section.collapsed .manual-entry-body { display:none; }
+        .manual-entry-section.collapsed { padding-bottom:18px; }
+        .manual-entry-body { margin-top:14px; }
+        /* ===== Mood picker ===== */
+        .mood-row { grid-column:1 / -1; margin-top:12px; }
+        .mood-row > label { display:block; font-size:.82rem; font-weight:600; color:var(--text-soft); margin-bottom:8px; }
+        .mood-picker { display:flex; gap:8px; flex-wrap:wrap; }
+        .mood-btn { font-size:1.5rem; line-height:1; width:46px; height:46px; border:1.5px solid var(--border); background:var(--surface); border-radius:12px; cursor:pointer; opacity:.55; transition:all .15s ease; }
+        .mood-btn:hover { opacity:.9; }
+        .mood-btn.selected { opacity:1; border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-ring); transform:translateY(-1px); }
+        .mood-modal-emojis { display:flex; justify-content:center; gap:10px; flex-wrap:wrap; margin:6px 0 4px; }
+        /* ===== Mood insight & report ===== */
+        .mood-insight-grid { display:flex; flex-direction:column; gap:10px; }
+        .mood-line { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:.9rem; }
+        .mood-line .mi-emoji { font-size:1.2rem; }
+        .report-section { margin-bottom:18px; }
+        .report-big { font-size:1.8rem; font-weight:800; color:var(--text); letter-spacing:-.02em; }
+        .report-delta { font-size:.85rem; font-weight:700; }
+        .report-delta.up { color:var(--success); } .report-delta.down { color:var(--danger); }
+        .report-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); font-size:.9rem; }
+        .report-row:last-child { border-bottom:none; }
+        .report-bar { height:8px; border-radius:999px; background:var(--bg-soft); overflow:hidden; margin-top:4px; }
+        .report-bar > div { height:100%; border-radius:999px; }
+        .report-tabs { display:flex; gap:6px; background:var(--surface-2); padding:5px; border-radius:var(--radius-sm); margin-bottom:16px; }
+        .report-tab { flex:1; padding:9px; border:none; background:transparent; border-radius:8px; font-weight:600; color:var(--text-muted); cursor:pointer; }
+        .report-tab.active { background:var(--surface); color:var(--primary-dark); box-shadow:var(--shadow-sm); }
+        .theme-btn { padding:7px 14px; background:var(--surface-2); border:1px solid var(--border); border-radius:999px; color:var(--text-soft); font-size:.82rem; font-weight:600; cursor:pointer; transition:all .18s ease; }
+        .theme-btn:hover, .report-btn-top:hover { background:var(--primary-soft); border-color:var(--primary); color:var(--primary-dark); }
+        .report-btn-top { padding:8px 14px; background:var(--primary-soft); border:1px solid transparent; border-radius:999px; color:var(--primary-dark); font-size:.82rem; font-weight:700; cursor:pointer; }
     </style>
 </head>
 <body>
@@ -754,6 +802,7 @@
                 <button id="authBtn" class="auth-btn" onclick="openAuthModal()">👤 Login</button>
                 <button class="sync-btn" onclick="openSyncModal()">🔄 Sync</button>
                 <button class="lang-btn" onclick="openLanguageModal()">🌐 Language</button>
+                <button class="theme-btn" onclick="openThemeModal()">🌓 Theme</button>
             </div>
             <div id="syncStatus" class="sync-status"></div>
         </header>
@@ -798,8 +847,9 @@
                 <p>Tracking: <strong id="activeCategoryName"></strong></p>
             </div>
 
-            <div class="manual-entry-section">
-                <h3>📝 Manual Entry (Add Record Without Timer)</h3>
+            <div class="manual-entry-section collapsed" id="manualEntrySection">
+                <h3 class="manual-entry-toggle" onclick="toggleManualEntry()"><span>📝 <span id="manualEntryTitle">Manual Entry (optional)</span></span><span class="me-caret">▸</span></h3>
+                <div class="manual-entry-body">
                 <div class="manual-entry-form">
                     <div class="form-group" style="grid-column: 1 / -1;">
                         <label for="manualCategory">Category</label>
@@ -830,9 +880,14 @@
                         </div>
                     </div>
                 </div>
+                <div class="mood-row">
+                    <label id="manualMoodLabel">Mood (optional)</label>
+                    <div class="mood-picker" id="manualMoodPicker"></div>
+                </div>
                 <button class="btn btn-add" onclick="addManualEntry()" style="width: 100%; margin-top: 10px; padding: 12px;">
                     ➕ Add Record
                 </button>
+                </div>
             </div>
 
             <!-- Add/Edit Goal Modal -->
@@ -906,7 +961,8 @@
                     <label for="statsDate">Date</label>
                     <input id="statsDate" type="date" onchange="updateLogsView()" />
                     <label for="statsRange">View</label>
-                    <select id="statsRange" onchange="updateLogsView()" style="padding: 8px 12px; border-radius: 8px; border: 2px solid #e5e7eb; font-size: 0.95rem; background: white;">
+                    <button class="report-btn-top" onclick="openReportModal()">📋 <span id="reportBtnText">Report</span></button>
+                    <select id="statsRange" onchange="updateLogsView()" style="padding: 8px 12px; border-radius: 8px;">
                         <option value="day">Day</option>
                         <option value="week">Week</option>
                         <option value="month">Month</option>
@@ -919,6 +975,11 @@
             <div class="category-stats">
                 <h3>Time by Category</h3>
                 <div class="category-bars" id="categoryBars"></div>
+            </div>
+
+            <div class="category-stats" id="moodInsightCard" style="display:none;">
+                <h3 id="moodInsightTitle">Mood Overview</h3>
+                <div class="mood-insight-grid" id="moodInsight"></div>
             </div>
 
             <!-- Overview Section (integrated) -->
@@ -969,7 +1030,10 @@
                         </div>
                         <div class="auth-field">
                             <label>Password</label>
-                            <input type="password" id="authPassword" required placeholder="••••••••" minlength="6">
+                            <div class="pw-wrap">
+                                <input type="password" id="authPassword" required placeholder="••••••••" minlength="6">
+                                <button type="button" class="pw-toggle" onclick="togglePw('authPassword', this)" aria-label="show password">👁</button>
+                            </div>
                         </div>
                         <button type="submit" class="auth-submit-btn" id="authSubmitBtn">Login</button>
                     </form>
@@ -1096,6 +1160,43 @@
     </div>
 
     <!-- Language Modal -->
+    <!-- Theme Modal -->
+    <div id="themeModal" class="sync-modal" onclick="closeThemeModal(event)">
+        <div class="sync-content" onclick="event.stopPropagation()">
+            <div class="sync-header"><h2 id="themeModalTitle">🌓 Theme</h2><button class="sync-close" onclick="closeThemeModal()">&times;</button></div>
+            <div class="sync-body"><div class="sync-section"><div class="language-options">
+                <button class="language-option" onclick="setTheme('light')"><span class="lang-flag">☀️</span><span class="lang-name" id="themeLightName">Light</span><span class="lang-check" id="themeCheck-light">✓</span></button>
+                <button class="language-option" onclick="setTheme('dark')"><span class="lang-flag">🌙</span><span class="lang-name" id="themeDarkName">Dark</span><span class="lang-check" id="themeCheck-dark">✓</span></button>
+                <button class="language-option" onclick="setTheme('auto')"><span class="lang-flag">🖥️</span><span class="lang-name" id="themeAutoName">Follow system</span><span class="lang-check" id="themeCheck-auto">✓</span></button>
+            </div></div></div>
+        </div>
+    </div>
+
+    <!-- Mood Modal -->
+    <div id="moodModal" class="sync-modal" onclick="closeMoodModal(event)">
+        <div class="sync-content" onclick="event.stopPropagation()" style="max-width:380px;">
+            <div class="sync-header"><h2 id="moodModalTitle">How did that feel?</h2><button class="sync-close" onclick="skipMood()">&times;</button></div>
+            <div class="sync-body">
+                <div class="mood-modal-emojis" id="moodModalEmojis"></div>
+                <button class="btn btn-cancel" style="width:100%; margin-top:14px;" onclick="skipMood()" id="moodSkipBtn">Skip</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report Modal -->
+    <div id="reportModal" class="sync-modal" onclick="closeReportModal(event)">
+        <div class="sync-content" onclick="event.stopPropagation()">
+            <div class="sync-header"><h2 id="reportModalTitle">📋 Report</h2><button class="sync-close" onclick="closeReportModal()">&times;</button></div>
+            <div class="sync-body">
+                <div class="report-tabs">
+                    <button class="report-tab active" id="reportTabWeek" onclick="switchReportPeriod('week')">This Week</button>
+                    <button class="report-tab" id="reportTabMonth" onclick="switchReportPeriod('month')">This Month</button>
+                </div>
+                <div id="reportBody"></div>
+            </div>
+        </div>
+    </div>
+
     <div id="languageModal" class="sync-modal" onclick="closeLanguageModal(event)">
         <div class="sync-content" onclick="event.stopPropagation()">
             <div class="sync-header">
@@ -1219,6 +1320,10 @@
         let timerInterval = null;
         let goals = []; // Array of goal objects: { id, name, period, target }
         let currentLanguage = 'en'; // Default language
+        let manualMood = 0;            // 手动录入选择的心情 1-5（0=未选）
+        let pendingMoodLogId = null;   // 计时停止后待评心情的日志
+        let reportPeriod = 'week';
+        const MOOD_EMOJIS = ['😫','😕','😐','🙂','😄'];
 
         // Translation strings
         const translations = {
@@ -1245,6 +1350,10 @@
                 clearAllData: '🗑️ Clear All Data',
                 clearAllConfirm: 'This permanently deletes ALL logs, goals and custom categories on THIS device and gives you a clean default version. Data already in the cloud is not affected unless you sync again. Continue?',
                 clearAllDone: 'All data cleared. You now have a clean default version.',
+                theme: 'Theme', chooseTheme: 'Choose Theme', themeLight: 'Light', themeDark: 'Dark', themeAuto: 'Follow system',
+                report: 'Report', noDataPeriod: 'No data for this period.', totalTime: 'Total time', vsLast: 'vs last', entries: 'Entries', activeDays: 'Active days', topCategories: 'Top categories',
+                moodLabel: 'Mood (optional)', moodPrompt: 'How did that feel?', skip: 'Skip', moodInsightTitle: 'Mood Overview', avgMood: 'Avg mood', happiest: 'Happiest', mostDraining: 'Most draining',
+                manualEntryShort: 'Manual Entry (optional)',
                 // Timer
                 start: 'Start',
                 stop: 'Stop & Save',
@@ -1409,6 +1518,10 @@
                 clearAllData: '🗑️ 清空全部数据',
                 clearAllConfirm: '这将永久删除本设备上的所有记录、目标和自定义分类，恢复为干净的默认版本。已在云端的数据不受影响（除非你再次同步）。确定继续吗？',
                 clearAllDone: '已清空全部数据，现在是干净的默认版本。',
+                theme: '主题', chooseTheme: '选择主题', themeLight: '浅色', themeDark: '深色', themeAuto: '跟随系统',
+                report: '报告', noDataPeriod: '此周期暂无数据。', totalTime: '总时长', vsLast: '对比上期', entries: '记录条数', activeDays: '活跃天数', topCategories: '主要分类',
+                moodLabel: '心情（可选）', moodPrompt: '这段时间心情如何？', skip: '跳过', moodInsightTitle: '心情概览', avgMood: '平均心情', happiest: '最开心', mostDraining: '最疲惫',
+                manualEntryShort: '手动录入（备选）',
                 // Timer
                 start: '开始',
                 stop: '停止并保存',
@@ -1555,6 +1668,95 @@
         // Helper function to get translation
         function t(key) {
             return translations[currentLanguage]?.[key] || translations['en'][key] || key;
+        }
+
+        // ===== Theme =====
+        function applyTheme(mode){
+            let eff = mode;
+            if (mode === 'auto') eff = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', eff);
+            const meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute('content', eff === 'dark' ? '#0f1320' : '#4f6ef2');
+        }
+        function loadTheme(){ applyTheme(localStorage.getItem('appTheme') || 'auto'); }
+        function setTheme(mode){ localStorage.setItem('appTheme', mode); applyTheme(mode); updateThemeModal(); }
+        function openThemeModal(){ updateThemeModal(); document.getElementById('themeModal').classList.add('active'); }
+        function closeThemeModal(e){ if (e && e.target !== e.currentTarget) return; document.getElementById('themeModal').classList.remove('active'); }
+        function updateThemeModal(){ const cur = localStorage.getItem('appTheme') || 'auto'; ['light','dark','auto'].forEach(m => { const c = document.getElementById('themeCheck-' + m); if (c) c.style.visibility = (m === cur) ? 'visible' : 'hidden'; }); }
+
+        // ===== Manual entry collapse =====
+        function toggleManualEntry(){ document.getElementById('manualEntrySection')?.classList.toggle('collapsed'); }
+
+        // ===== Mood =====
+        function moodLabels(){ return currentLanguage === 'zh' ? ['很差','不佳','一般','不错','很好'] : ['Awful','Bad','Okay','Good','Great']; }
+        function moodEmojiFor(v){ return MOOD_EMOJIS[Math.max(0, Math.min(4, Math.round(v) - 1))]; }
+        function renderManualMoodPicker(){
+            const box = document.getElementById('manualMoodPicker'); if (!box) return; const labels = moodLabels();
+            box.innerHTML = MOOD_EMOJIS.map((e,i) => `<button type="button" class="mood-btn ${manualMood === i+1 ? 'selected' : ''}" title="${labels[i]}" onclick="selectManualMood(${i+1})">${e}</button>`).join('');
+        }
+        function selectManualMood(v){ manualMood = (manualMood === v ? 0 : v); renderManualMoodPicker(); }
+        function openMoodModal(logId){
+            pendingMoodLogId = logId; const labels = moodLabels();
+            const box = document.getElementById('moodModalEmojis');
+            if (box) box.innerHTML = MOOD_EMOJIS.map((e,i) => `<button type="button" class="mood-btn" title="${labels[i]}" onclick="setLogMood(${i+1})">${e}</button>`).join('');
+            document.getElementById('moodModal').classList.add('active');
+        }
+        function closeMoodModal(e){ if (e && e.target !== e.currentTarget) return; skipMood(); }
+        function setLogMood(v){ const log = timeLogs.find(l => l.id === pendingMoodLogId); if (log){ log.mood = v; saveLogs(); updateLogsView(); } pendingMoodLogId = null; document.getElementById('moodModal').classList.remove('active'); }
+        function skipMood(){ pendingMoodLogId = null; document.getElementById('moodModal').classList.remove('active'); }
+        function renderMoodInsight(){
+            const card = document.getElementById('moodInsightCard'); const box = document.getElementById('moodInsight'); if (!card || !box) return;
+            const range = document.getElementById('statsRange')?.value || 'day';
+            const { startMs, endMs } = getStatsRangeBounds(range);
+            const logs = timeLogs.filter(l => { const e = getLogEndTimeMs(l); return e >= startMs && e < endMs && l.mood; });
+            if (logs.length === 0){ card.style.display = 'none'; return; }
+            const byCat = {};
+            logs.forEach(l => { if (!byCat[l.category]) byCat[l.category] = { sum:0, n:0 }; byCat[l.category].sum += l.mood; byCat[l.category].n++; });
+            const cats = getAllCategories();
+            const rows = Object.keys(byCat).map(id => { const cat = cats.find(c => c.id === id); return { name: cat ? cat.name : id, icon: cat ? cat.icon : '📌', avg: byCat[id].sum / byCat[id].n }; });
+            const overall = logs.reduce((s,l) => s + l.mood, 0) / logs.length;
+            rows.sort((a,b) => b.avg - a.avg);
+            const best = rows[0], worst = rows[rows.length - 1];
+            let html = `<div class="mood-line"><span>${t('avgMood')}</span><span><span class="mi-emoji">${moodEmojiFor(overall)}</span> ${overall.toFixed(1)}/5</span></div>`;
+            if (best) html += `<div class="mood-line"><span>😄 ${t('happiest')}</span><span>${best.icon} ${best.name} <span class="mi-emoji">${moodEmojiFor(best.avg)}</span></span></div>`;
+            if (worst && worst !== best) html += `<div class="mood-line"><span>😫 ${t('mostDraining')}</span><span>${worst.icon} ${worst.name} <span class="mi-emoji">${moodEmojiFor(worst.avg)}</span></span></div>`;
+            box.innerHTML = html; card.style.display = '';
+        }
+
+        // ===== Reports =====
+        function periodBounds(period, offset){
+            const now = new Date(); now.setHours(0,0,0,0);
+            if (period === 'week'){ const day = now.getDay(); const diff = (day === 0 ? -6 : 1 - day); const s = new Date(now); s.setDate(now.getDate() + diff + offset * 7); s.setHours(0,0,0,0); return { startMs: s.getTime(), endMs: s.getTime() + 7 * 864e5 }; }
+            const s = new Date(now.getFullYear(), now.getMonth() + offset, 1); const e = new Date(now.getFullYear(), now.getMonth() + offset + 1, 1); return { startMs: s.getTime(), endMs: e.getTime() };
+        }
+        function periodStats(period, offset){
+            const { startMs, endMs } = periodBounds(period, offset);
+            const logs = timeLogs.filter(l => { const e = getLogEndTimeMs(l); return e >= startMs && e < endMs; });
+            let total = 0; const byCat = {}; const days = new Set(); let moodSum = 0, moodN = 0;
+            logs.forEach(l => { const d = getDurationSeconds(l); total += d; byCat[l.category] = (byCat[l.category] || 0) + d; days.add(new Date(getLogEndTimeMs(l)).toDateString()); if (l.mood){ moodSum += l.mood; moodN++; } });
+            return { total, byCat, entries: logs.length, days: days.size, moodAvg: moodN ? moodSum / moodN : 0 };
+        }
+        function openReportModal(){ switchReportPeriod('week'); document.getElementById('reportModal').classList.add('active'); }
+        function closeReportModal(e){ if (e && e.target !== e.currentTarget) return; document.getElementById('reportModal').classList.remove('active'); }
+        function switchReportPeriod(p){ reportPeriod = p; document.getElementById('reportTabWeek')?.classList.toggle('active', p === 'week'); document.getElementById('reportTabMonth')?.classList.toggle('active', p === 'month'); renderReport(); }
+        function renderReport(){
+            const box = document.getElementById('reportBody'); if (!box) return;
+            const cur = periodStats(reportPeriod, 0), prev = periodStats(reportPeriod, -1);
+            const cats = getAllCategories();
+            if (cur.entries === 0){ box.innerHTML = `<div class="empty-state">${t('noDataPeriod')}</div>`; return; }
+            const fmtH = s => { const h = Math.floor(s/3600), m = Math.floor((s%3600)/60); return h > 0 ? `${h}h ${m}m` : `${m}m`; };
+            let delta = '';
+            if (prev.total > 0){ const pct = Math.round((cur.total - prev.total) / prev.total * 100); const up = pct >= 0; delta = ` <span class="report-delta ${up?'up':'down'}">${up?'▲':'▼'} ${Math.abs(pct)}% ${t('vsLast')}</span>`; }
+            const top = Object.keys(cur.byCat).map(id => ({ id, tt: cur.byCat[id], cat: cats.find(c => c.id === id) })).sort((a,b) => b.tt - a.tt).slice(0,5);
+            const max = top.length ? top[0].tt : 1;
+            let html = `<div class="report-section"><div class="report-big">${fmtH(cur.total)}</div><div>${t('totalTime')}${delta}</div></div>`;
+            html += `<div class="report-section"><div class="report-row"><span>${t('entries')}</span><strong>${cur.entries}</strong></div><div class="report-row"><span>${t('activeDays')}</span><strong>${cur.days}</strong></div>`;
+            if (cur.moodAvg) html += `<div class="report-row"><span>${t('avgMood')}</span><strong><span class="mi-emoji">${moodEmojiFor(cur.moodAvg)}</span> ${cur.moodAvg.toFixed(1)}/5</strong></div>`;
+            html += `</div><div class="report-section"><div style="font-weight:700;margin-bottom:8px;">${t('topCategories')}</div>`;
+            top.forEach(it => { const name = it.cat ? it.cat.name : it.id; const icon = it.cat ? it.cat.icon : '📌'; const color = it.cat ? it.cat.color : '#888'; const w = Math.round(it.tt / max * 100);
+                html += `<div style="margin-bottom:10px;"><div class="report-row" style="border:none;padding:2px 0;"><span>${icon} ${name}</span><span>${fmtH(it.tt)}</span></div><div class="report-bar"><div style="width:${w}%;background:${color};"></div></div></div>`; });
+            html += `</div>`;
+            box.innerHTML = html;
         }
 
         // Get all categories (default + custom), applying modifications and excluding deleted
@@ -1740,6 +1942,13 @@
             loadLogs();
             loadGoals();
             loadLanguage();
+            loadTheme();
+            renderManualMoodPicker();
+            if (window.matchMedia) {
+                window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+                    if ((localStorage.getItem('appTheme') || 'auto') === 'auto') applyTheme('auto');
+                });
+            }
             
             // Ensure selected category exists
             const allCats = getAllCategories();
@@ -1842,10 +2051,10 @@
                         <button
                             class="category-card ${isSelected ? 'active' : ''}"
                             onclick="selectCategory('${category.id}')"
-                            style="background: ${isSelected ? category.color + '15' : 'white'}; ${isSelected ? 'box-shadow: 0 6px 20px ' + category.color + '35;' : ''}"
+                            style="background: ${isSelected ? category.color + '15' : 'var(--surface-2)'}; ${isSelected ? 'box-shadow: 0 6px 20px ' + category.color + '35;' : ''}"
                         >
                             <span class="category-icon" style="background: ${category.color}20;">${category.icon}</span>
-                            <span class="category-name" style="color: ${isSelected ? category.color : '#374151'}">${category.name}</span>
+                            <span class="category-name" style="color: ${isSelected ? category.color : 'var(--text-soft)'}">${category.name}</span>
                         </button>
                         ${isSelected && subs.length > 0 ? `
                             <div class="subcategory-panel">
@@ -1971,6 +2180,7 @@
             resetTimer();
             updateLogsView();
             renderGoalsProgress();
+            openMoodModal(newLog.id);
         }
 
         // Reset timer
@@ -2454,6 +2664,7 @@
                 logsBtn.classList.add('active');
                 updateLogsView();
                 renderOverview();
+                renderMoodInsight();
             }
         }
 
@@ -3592,6 +3803,7 @@
             
             // Also update Overview section
             renderOverview();
+            renderMoodInsight();
         }
 
         // Delete log
@@ -3703,6 +3915,7 @@
                 endTime: endTime,
                 date: new Date(endTime).toISOString(),
                 isManualEntry: true,
+                mood: manualMood || null,
             };
             
             timeLogs.unshift(newLog);
@@ -3712,6 +3925,7 @@
             initManualTimeSelects();
             document.getElementById('manualCategory').value = selectedCategory; // Reset to current selected category
             updateManualSubcategoryDropdown();
+            manualMood = 0; renderManualMoodPicker();
             
             updateLogsView();
             renderGoalsProgress();
@@ -4412,6 +4626,13 @@
             }
         }
 
+        function togglePw(id, btn) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            if (el.type === 'password') { el.type = 'text'; btn.textContent = '🙈'; }
+            else { el.type = 'password'; btn.textContent = '👁'; }
+        }
+
         function closeAuthModal(event) {
             if (event && event.target !== event.currentTarget) return;
             document.getElementById('authModal').classList.remove('active');
@@ -4562,7 +4783,7 @@
                     
                     if (!localSync || (cloudTime && new Date(cloudTime) > new Date(localSync))) {
                         // Cloud is newer, merge data
-                        processImportedData(cloudData);
+                        processImportedData(cloudData, { silent: true });
                     }
                 }
             } catch (err) {
@@ -4587,7 +4808,7 @@
                         // Only update if cloud is newer and not our own update
                         if (cloudTime && localSync && new Date(cloudTime) > new Date(localSync)) {
                             console.log('Cloud data updated, syncing...');
-                            processImportedData(cloudData);
+                            processImportedData(cloudData, { silent: true });
                             localStorage.setItem('lastCloudSync', cloudTime.toISOString());
                         }
                     }
@@ -4595,7 +4816,9 @@
         }
 
         // Auto-sync when data changes
+        let suppressAutoSync = false; // 应用云端数据时为 true，避免回环
         function autoSyncToCloud() {
+            if (suppressAutoSync) return;
             if (currentUser && firebaseDb) {
                 // Debounce sync
                 clearTimeout(window.syncTimeout);
@@ -4866,6 +5089,23 @@
             const logoutBtn = document.querySelector('.logout-btn');
             if (logoutBtn) logoutBtn.textContent = '🚪 ' + t.logout;
 
+            // ---- New features UI (theme / report / mood / manual entry) ----
+            const themeBtn = document.querySelector('.theme-btn'); if (themeBtn) themeBtn.textContent = '🌓 ' + t.theme;
+            const reportBtnText = document.getElementById('reportBtnText'); if (reportBtnText) reportBtnText.textContent = t.report;
+            const manualTitle = document.getElementById('manualEntryTitle'); if (manualTitle) manualTitle.textContent = t.manualEntryShort;
+            const manualMoodLabel = document.getElementById('manualMoodLabel'); if (manualMoodLabel) manualMoodLabel.textContent = t.moodLabel;
+            const moodInsightTitle = document.getElementById('moodInsightTitle'); if (moodInsightTitle) moodInsightTitle.textContent = t.moodInsightTitle;
+            const themeModalTitle = document.getElementById('themeModalTitle'); if (themeModalTitle) themeModalTitle.textContent = '🌓 ' + t.chooseTheme;
+            const themeLightName = document.getElementById('themeLightName'); if (themeLightName) themeLightName.textContent = t.themeLight;
+            const themeDarkName = document.getElementById('themeDarkName'); if (themeDarkName) themeDarkName.textContent = t.themeDark;
+            const themeAutoName = document.getElementById('themeAutoName'); if (themeAutoName) themeAutoName.textContent = t.themeAuto;
+            const moodModalTitle = document.getElementById('moodModalTitle'); if (moodModalTitle) moodModalTitle.textContent = t.moodPrompt;
+            const moodSkipBtn = document.getElementById('moodSkipBtn'); if (moodSkipBtn) moodSkipBtn.textContent = t.skip;
+            const reportModalTitle = document.getElementById('reportModalTitle'); if (reportModalTitle) reportModalTitle.textContent = '📋 ' + t.report;
+            const reportTabWeek = document.getElementById('reportTabWeek'); if (reportTabWeek) reportTabWeek.textContent = t.thisWeek;
+            const reportTabMonth = document.getElementById('reportTabMonth'); if (reportTabMonth) reportTabMonth.textContent = t.thisMonth;
+            renderManualMoodPicker();
+
             // Re-render goals to update translations
             renderGoalsProgress();
 
@@ -4878,6 +5118,7 @@
                 version: '1.0',
                 exportDate: new Date().toISOString(),
                 timeLogs: timeLogs,
+                goals: goals,
                 customCategories: customCategories,
                 customSubcategories: customSubcategories,
                 modifiedDefaults: modifiedDefaults,
@@ -4920,77 +5161,81 @@
             event.target.value = ''; // Reset file input
         }
 
-        function processImportedData(data) {
-            if (!data.timeLogs && !data.customCategories) {
-                alert('❌ Invalid data format. This doesn\'t appear to be a Hourglass backup.');
+        function processImportedData(data, opts) {
+            opts = opts || {};
+            const silent = !!opts.silent;
+            const zh = (currentLanguage === 'zh');
+            if (!data || (!data.timeLogs && !data.customCategories && !data.goals)) {
+                if (!silent) alert(zh ? '❌ 数据格式无效，这不像是 Hourglass 的备份。' : '❌ Invalid data format. This doesn\'t appear to be a Hourglass backup.');
                 return;
             }
 
-            const mergeChoice = confirm(
-                '📥 Data found!\n\n' +
-                `• ${(data.timeLogs || []).length} time logs\n` +
-                `• ${(data.customCategories || []).length} custom categories\n\n` +
-                'Choose merge option:\n' +
-                '• OK = Merge with existing data (keep both)\n' +
-                '• Cancel = Replace all data (overwrite)'
-            );
-
-            if (mergeChoice) {
-                // Merge data
-                if (data.timeLogs) {
-                    const existingIds = new Set(timeLogs.map(l => l.id));
-                    data.timeLogs.forEach(log => {
-                        if (!existingIds.has(log.id)) {
-                            timeLogs.push(log);
-                        }
-                    });
-                }
-                if (data.customCategories) {
-                    const existingIds = new Set(customCategories.map(c => c.id));
-                    data.customCategories.forEach(cat => {
-                        if (!existingIds.has(cat.id)) {
-                            customCategories.push(cat);
-                        }
-                    });
-                }
-                if (data.customSubcategories) {
-                    Object.keys(data.customSubcategories).forEach(catId => {
-                        if (!customSubcategories[catId]) {
-                            customSubcategories[catId] = [];
-                        }
-                        data.customSubcategories[catId].forEach(sub => {
-                            if (!customSubcategories[catId].includes(sub)) {
-                                customSubcategories[catId].push(sub);
-                            }
-                        });
-                    });
-                }
-            } else {
-                // Replace all
-                timeLogs = data.timeLogs || [];
-                customCategories = data.customCategories || [];
-                customSubcategories = data.customSubcategories || {};
-                modifiedDefaults = data.modifiedDefaults || {};
-                deletedDefaults = data.deletedDefaults || [];
-                if (data.hiddenSubcategories) {
-                    localStorage.setItem('hiddenSubcategories', JSON.stringify(data.hiddenSubcategories));
-                }
+            // 云同步静默合并；手动导入才询问合并/覆盖
+            let doMerge = true;
+            if (!silent) {
+                doMerge = confirm(
+                    (zh ? '📥 发现数据！\n\n' : '📥 Data found!\n\n') +
+                    `• ${(data.timeLogs || []).length} ` + (zh ? '条记录\n' : 'time logs\n') +
+                    `• ${(data.goals || []).length} ` + (zh ? '个目标\n\n' : 'goals\n\n') +
+                    (zh ? '选择方式：\n• 确定 = 与现有数据合并\n• 取消 = 覆盖全部数据'
+                       : 'Choose merge option:\n• OK = Merge with existing data\n• Cancel = Replace all data')
+                );
             }
 
-            // Save all
-            saveLogs();
-            saveCustomCategories();
-            saveCustomSubcategories();
-            saveModifiedDefaults();
-            saveDeletedDefaults();
+            suppressAutoSync = true;
+            try {
+                if (doMerge) {
+                    if (data.timeLogs) {
+                        const ex = new Set(timeLogs.map(l => l.id));
+                        data.timeLogs.forEach(l => { if (!ex.has(l.id)) timeLogs.push(l); });
+                    }
+                    if (data.goals) {
+                        const ex = new Set(goals.map(g => g.id));
+                        data.goals.forEach(g => { if (!ex.has(g.id)) goals.push(g); });
+                    }
+                    if (data.customCategories) {
+                        const ex = new Set(customCategories.map(c => c.id));
+                        data.customCategories.forEach(c => { if (!ex.has(c.id)) customCategories.push(c); });
+                    }
+                    if (data.customSubcategories) {
+                        Object.keys(data.customSubcategories).forEach(catId => {
+                            if (!customSubcategories[catId]) customSubcategories[catId] = [];
+                            data.customSubcategories[catId].forEach(sub => {
+                                if (!customSubcategories[catId].includes(sub)) customSubcategories[catId].push(sub);
+                            });
+                        });
+                    }
+                    if (data.modifiedDefaults) modifiedDefaults = Object.assign({}, data.modifiedDefaults, modifiedDefaults);
+                    if (data.deletedDefaults) deletedDefaults = Array.from(new Set([...(deletedDefaults || []), ...data.deletedDefaults]));
+                } else {
+                    timeLogs = data.timeLogs || [];
+                    goals = data.goals || [];
+                    customCategories = data.customCategories || [];
+                    customSubcategories = data.customSubcategories || {};
+                    modifiedDefaults = data.modifiedDefaults || {};
+                    deletedDefaults = data.deletedDefaults || [];
+                    if (data.hiddenSubcategories) localStorage.setItem('hiddenSubcategories', JSON.stringify(data.hiddenSubcategories));
+                }
+                // 持久化（不触发自动云同步，避免回环）
+                localStorage.setItem('timeLogs', JSON.stringify(timeLogs));
+                localStorage.setItem('timeGoals', JSON.stringify(goals));
+                localStorage.setItem('customCategories', JSON.stringify(customCategories));
+                localStorage.setItem('customSubcategories', JSON.stringify(customSubcategories));
+                localStorage.setItem('modifiedDefaults', JSON.stringify(modifiedDefaults));
+                localStorage.setItem('deletedDefaults', JSON.stringify(deletedDefaults));
+            } finally {
+                suppressAutoSync = false;
+            }
 
-            // Refresh UI
             renderCategories();
             updateLogsView();
             updateManualCategoryDropdown();
+            renderGoalsProgress();
 
-            alert('✅ Data imported successfully!\n\nYour time logs and settings have been synced.');
-            closeSyncModal();
+            if (!silent) {
+                alert(zh ? '✅ 数据导入成功！' : '✅ Data imported successfully!');
+                closeSyncModal();
+            }
         }
 
         function copySyncCode() {
