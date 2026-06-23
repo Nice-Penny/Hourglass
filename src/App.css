@@ -433,6 +433,130 @@ input, select { font-family: inherit }
 }
 .icon-action:hover { color: var(--red); background: #fee2e2 }
 
+/* ─── Focus Mode Overlay ─────────────────────────────────────────────────────── */
+.focus-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: linear-gradient(160deg, #0f0c29, #302b63, #24243e);
+  display: flex; align-items: center; justify-content: center;
+  animation: fadeIn .25s;
+}
+.focus-content {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 16px; padding: 32px 24px; text-align: center;
+}
+.focus-phase-label {
+  color: rgba(255,255,255,.7); font-size: .95rem; font-weight: 600; letter-spacing: 1px;
+}
+.focus-task-name {
+  color: white; font-size: 1.2rem; font-weight: 700; max-width: 280px;
+  line-height: 1.4;
+}
+.focus-big-time {
+  font-size: 5rem; font-weight: 900; color: white;
+  font-variant-numeric: tabular-nums; letter-spacing: 4px;
+  line-height: 1;
+}
+.focus-pom-ring { position: absolute; opacity: .25 }
+.focus-btns { display: flex; gap: 12px; margin-top: 8px }
+.focus-exit-btn { background: rgba(255,255,255,.15); color: white; backdrop-filter: blur(4px) }
+
+/* Focus mode trigger button */
+.focus-mode-btn {
+  background: rgba(255,255,255,.15); color: white;
+  backdrop-filter: blur(4px);
+  padding: 11px 16px;
+}
+
+/* ─── Task Templates ─────────────────────────────────────────────────────────── */
+.templates-row {
+  display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px;
+  scrollbar-width: none; margin-bottom: 8px;
+}
+.templates-row::-webkit-scrollbar { display: none }
+.template-chip-wrap { display: flex; align-items: center; gap: 0; flex-shrink: 0 }
+.template-chip {
+  padding: 6px 12px; border-radius: 20px 0 0 20px;
+  border: 1.5px solid var(--border); border-right: none;
+  background: var(--surface2); color: var(--text);
+  font-size: .82rem; white-space: nowrap;
+  transition: all .2s; cursor: pointer;
+}
+.template-chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft) }
+.template-del {
+  padding: 6px 8px; border-radius: 0 20px 20px 0;
+  border: 1.5px solid var(--border); border-left: 1px solid var(--border);
+  background: var(--surface2); color: var(--text-muted);
+  font-size: .75rem; transition: all .2s; cursor: pointer;
+}
+.template-del:hover { background: #fee2e2; color: var(--red); border-color: var(--red) }
+
+.desc-row { display: flex; gap: 8px; align-items: stretch }
+.desc-row .text-input { flex: 1 }
+.save-tpl-btn { padding: 0 14px; font-size: 1rem; flex-shrink: 0 }
+
+/* ─── Day Planner ────────────────────────────────────────────────────────────── */
+.plan-summary {
+  display: flex; gap: 12px; margin-bottom: 16px;
+}
+.plan-sum-item {
+  flex: 1; background: var(--surface); border-radius: var(--radius);
+  padding: 14px 10px; text-align: center; box-shadow: var(--shadow);
+}
+.plan-sum-val { font-size: 1.4rem; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums }
+.plan-sum-lbl { font-size: .75rem; color: var(--text-muted); margin-top: 2px }
+
+.plan-list { display: flex; flex-direction: column; gap: 10px }
+.plan-item {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--surface); border-radius: var(--radius);
+  padding: 14px; box-shadow: var(--shadow);
+  border-left: 4px solid var(--border);
+  transition: all .2s;
+}
+.plan-item.done { opacity: .65 }
+.plan-info { flex: 1; min-width: 0 }
+.plan-title { font-size: .95rem; font-weight: 700 }
+.plan-meta { font-size: .78rem; color: var(--text-muted); margin-top: 3px }
+.plan-actual { color: var(--accent) }
+
+/* Time chips in plan form */
+.time-chips { display: flex; flex-wrap: wrap; gap: 6px }
+.time-chip {
+  padding: 5px 12px; border-radius: 20px;
+  border: 1.5px solid var(--border);
+  background: var(--surface2); color: var(--text);
+  font-size: .85rem; font-weight: 600; transition: all .2s;
+}
+.time-chip.active { border-color: var(--accent); background: var(--accent); color: white }
+.time-chip:hover { border-color: var(--accent); color: var(--accent) }
+
+/* ─── PWA Banner ─────────────────────────────────────────────────────────────── */
+.pwa-banner {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: white; padding: 10px 16px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  font-size: .82rem; font-weight: 600;
+}
+.pwa-install-btn {
+  background: white; color: var(--accent);
+  border: none; border-radius: 20px;
+  padding: 5px 14px; font-size: .82rem; font-weight: 700;
+  cursor: pointer; white-space: nowrap; flex-shrink: 0;
+}
+.pwa-dismiss-btn {
+  background: rgba(255,255,255,.2); border: none; border-radius: 50%;
+  width: 24px; height: 24px; color: white; font-size: .75rem;
+  cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+
+/* ─── Language toggle ────────────────────────────────────────────────────────── */
+.lang-btn {
+  background: rgba(255,255,255,.18); border: none; border-radius: 8px;
+  color: white; font-size: .8rem; font-weight: 700;
+  padding: 5px 9px; cursor: pointer; transition: background .2s;
+}
+.lang-btn:hover { background: rgba(255,255,255,.3) }
+
 /* ─── Stats Goals/Habits ────────────────────────────────────────────────────── */
 .stats-goal-list { display: flex; flex-direction: column; gap: 10px }
 .stats-goal-item { background: var(--surface2); border-radius: 10px; padding: 12px 14px }

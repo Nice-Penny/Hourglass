@@ -4,16 +4,17 @@ import { auth, login, register, logout, subscribeUserData, saveUserData, onAuthS
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const CATEGORIES = [
-  { id: 'work',          name: '工作', color: '#3b82f6', icon: '💼' },
-  { id: 'learning',      name: '学习', color: '#10b981', icon: '📚' },
-  { id: 'sports',        name: '运动', color: '#f59e0b', icon: '🏃' },
-  { id: 'entertainment', name: '娱乐', color: '#ef4444', icon: '🎮' },
-  { id: 'social',        name: '社交', color: '#8b5cf6', icon: '👥' },
-  { id: 'rest',          name: '休息', color: '#06b6d4', icon: '😴' },
-  { id: 'other',         name: '其他', color: '#6b7280', icon: '📝' },
+  { id: 'work',          name: '工作', nameEn: 'Work',    color: '#3b82f6', icon: '💼' },
+  { id: 'learning',      name: '学习', nameEn: 'Study',   color: '#10b981', icon: '📚' },
+  { id: 'sports',        name: '运动', nameEn: 'Sports',  color: '#f59e0b', icon: '🏃' },
+  { id: 'entertainment', name: '娱乐', nameEn: 'Fun',     color: '#ef4444', icon: '🎮' },
+  { id: 'social',        name: '社交', nameEn: 'Social',  color: '#8b5cf6', icon: '👥' },
+  { id: 'rest',          name: '休息', nameEn: 'Rest',    color: '#06b6d4', icon: '😴' },
+  { id: 'other',         name: '其他', nameEn: 'Other',   color: '#6b7280', icon: '📝' },
 ]
-const POMODORO_WORK  = 25 * 60
-const POMODORO_BREAK =  5 * 60
+const POMODORO_WORK      = 25 * 60
+const POMODORO_BREAK     =  5 * 60
+const POMODORO_LONG_BREAK = 15 * 60
 const GOAL_ICONS  = ['🎯','🚀','💪','📖','💰','🏆','🌱','❤️','🎨','🏠','🎵','✈️']
 const GOAL_COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316','#ec4899']
 const PRESET_HABITS = [
@@ -21,6 +22,45 @@ const PRESET_HABITS = [
   { title: '阅读', icon: '📖' }, { title: '冥想', icon: '🧘' },
   { title: '喝水', icon: '💧' }, { title: '早睡', icon: '🌙' },
 ]
+
+// ─── i18n ────────────────────────────────────────────────────────────────────
+const T = {
+  zh: {
+    timer:'计时', goals:'目标', stats:'统计', habits:'习惯', plan:'计划',
+    start:'▶ 开始', stopSave:'⏹ 停止保存', pause:'⏸ 暂停', reset:'↻ 重置',
+    category:'分类', taskDesc:'任务描述（可选）', linkGoalHabit:'关联目标或习惯（可选）',
+    templates:'快捷模板', saveAsTemplate:'保存为模板', focusMode:'🎯 专注模式',
+    exitFocus:'退出专注', todayTotal:'今日已记录',
+    installApp:'📱 添加到主屏幕，随时快速打开', install:'安装',
+    goalLink:'🎯 目标...', habitLink:'✅ 习惯...', taskLink:'— 选择子任务 —',
+    dayPlanner:'今日计划', planSubtitle:'规划今天，对比实际完成',
+    addPlan:'+ 添加', planned:'计划', actual:'实际', done:'已完成',
+    cancel:'取消', save:'保存', add:'添加',
+    focusTitle:'专注中', pomWork:'🍅 专注时间', pomBreak:'☕ 休息时间', pomLong:'🌿 长休息',
+    noPlans:'还没有计划，规划一下今天吧！', history:'历史记录',
+    taskName:'任务名称', taskPlaceholder:'今天要做什么？',
+    estimatedMins:'预计时长（分钟）', selectCat:'分类',
+    min:'分', est:'预估', act:'实际',
+  },
+  en: {
+    timer:'Timer', goals:'Goals', stats:'Stats', habits:'Habits', plan:'Plan',
+    start:'▶ Start', stopSave:'⏹ Stop & Save', pause:'⏸ Pause', reset:'↻ Reset',
+    category:'Category', taskDesc:'Task Description (optional)', linkGoalHabit:'Link Goal or Habit (optional)',
+    templates:'Quick Templates', saveAsTemplate:'Save as Template', focusMode:'🎯 Focus Mode',
+    exitFocus:'Exit Focus', todayTotal:"Today's total",
+    installApp:'📱 Add to home screen for quick access', install:'Install',
+    goalLink:'🎯 Goal...', habitLink:'✅ Habit...', taskLink:'— Select subtask —',
+    dayPlanner:"Today's Plan", planSubtitle:'Plan your day, track completion',
+    addPlan:'+ Add', planned:'Planned', actual:'Actual', done:'Done',
+    cancel:'Cancel', save:'Save', add:'Add',
+    focusTitle:'Focusing', pomWork:'🍅 Focus Time', pomBreak:'☕ Break Time', pomLong:'🌿 Long Break',
+    noPlans:"No plans yet, add tasks for today!", history:'History',
+    taskName:'Task Name', taskPlaceholder:'What to work on today?',
+    estimatedMins:'Estimated (minutes)', selectCat:'Category',
+    min:'min', est:'Est.', act:'Actual',
+  }
+}
+const t = (lang, key) => T[lang]?.[key] ?? key
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function fmt(s) {
@@ -33,6 +73,7 @@ function fmtH(s) {
   return h < 0.017 ? '< 1分' : h < 1 ? `${Math.round(h * 60)}分` : `${h.toFixed(1)}h`
 }
 function todayStr() { return new Date().toISOString().slice(0, 10) }
+
 // ─── SVG: Weekly Bar Chart ────────────────────────────────────────────────────
 function WeeklyBarChart({ logs }) {
   const days = Array.from({ length: 7 }, (_, i) => {
@@ -90,17 +131,13 @@ function DonutChart({ data, total }) {
 }
 
 // ─── Audio ────────────────────────────────────────────────────────────────────
-// 全局共享 AudioContext，点击开始时解锁，避免手机浏览器挂起
 let _audioCtx = null
 function getAudioCtx() {
   if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)()
   if (_audioCtx.state === 'suspended') _audioCtx.resume()
   return _audioCtx
 }
-// 点开始时主动解锁（用户手势触发）
-function unlockAudio() {
-  try { getAudioCtx() } catch (e) {}
-}
+function unlockAudio() { try { getAudioCtx() } catch (e) {} }
 
 function playBeep(type = 'work') {
   try {
@@ -120,25 +157,23 @@ function playBeep(type = 'work') {
   } catch (e) {}
 }
 
-const POMODORO_LONG_BREAK = 15 * 60
-
 // ─── Timer View ───────────────────────────────────────────────────────────────
-function TimerView({ logs, onSave, goals, habits }) {
-  const [mode, setMode]         = useState('stopwatch')
-  const [running, setRunning]   = useState(false)
-  const [elapsed, setElapsed]   = useState(0)
-  const [category, setCategory] = useState('work')
-  const [desc, setDesc]         = useState('')
-  const [linkedGoal, setLinkedGoal]   = useState('')
-  const [linkedTask, setLinkedTask]   = useState('')
+function TimerView({ logs, onSave, goals, habits, templates, setTemplates, lang }) {
+  const [mode, setMode]             = useState('stopwatch')
+  const [running, setRunning]       = useState(false)
+  const [elapsed, setElapsed]       = useState(0)
+  const [category, setCategory]     = useState('work')
+  const [desc, setDesc]             = useState('')
+  const [linkedGoal, setLinkedGoal] = useState('')
+  const [linkedTask, setLinkedTask] = useState('')
   const [linkedHabit, setLinkedHabit] = useState('')
-  const [pomPhase, setPomPhase] = useState('work')  // 'work' | 'break' | 'longbreak'
-  const [pomCount, setPomCount] = useState(0)        // 完成的专注次数
-  const [pomRemain, setPomRemain] = useState(POMODORO_WORK)
-  const [toast, setToast]       = useState(null)     // { msg, icon, color }
+  const [pomPhase, setPomPhase]     = useState('work')
+  const [pomCount, setPomCount]     = useState(0)
+  const [pomRemain, setPomRemain]   = useState(POMODORO_WORK)
+  const [toast, setToast]           = useState(null)
+  const [focusMode, setFocusMode]   = useState(false)
 
-  // 用 ref 存时间戳，切后台不丢失
-  const startTsRef    = useRef(null)  // 计时器/番茄钟阶段开始时间
+  const startTsRef    = useRef(null)
   const ivRef         = useRef(null)
   const runningRef    = useRef(false)
   const modeRef       = useRef('stopwatch')
@@ -150,7 +185,6 @@ function TimerView({ logs, onSave, goals, habits }) {
   const linkedTaskRef  = useRef('')
   const linkedHabitRef = useRef('')
 
-  // 同步 ref
   useEffect(() => { runningRef.current = running }, [running])
   useEffect(() => { modeRef.current = mode }, [mode])
   useEffect(() => { pomPhaseRef.current = pomPhase }, [pomPhase])
@@ -161,7 +195,7 @@ function TimerView({ logs, onSave, goals, habits }) {
   useEffect(() => { linkedTaskRef.current  = linkedTask  }, [linkedTask])
   useEffect(() => { linkedHabitRef.current = linkedHabit }, [linkedHabit])
 
-  const getPomTarget = (phase) =>
+  const getPomTarget = phase =>
     phase === 'work' ? POMODORO_WORK : phase === 'longbreak' ? POMODORO_LONG_BREAK : POMODORO_BREAK
 
   function doSave(dur, label) {
@@ -176,7 +210,6 @@ function TimerView({ logs, onSave, goals, habits }) {
     })
   }
 
-  // 核心：基于时间戳刷新显示
   const tick = () => {
     if (!startTsRef.current) return
     const now = Date.now()
@@ -186,11 +219,8 @@ function TimerView({ logs, onSave, goals, habits }) {
       const target = getPomTarget(pomPhaseRef.current)
       const spent  = Math.floor((now - startTsRef.current) / 1000)
       const remain = target - spent
-      if (remain <= 0) {
-        phaseEnd()
-      } else {
-        setPomRemain(remain)
-      }
+      if (remain <= 0) phaseEnd()
+      else setPomRemain(remain)
     }
   }
 
@@ -213,52 +243,41 @@ function TimerView({ logs, onSave, goals, habits }) {
         ? `第 ${newCount} 个完成！🌿 获得15分钟长休息`
         : `第 ${newCount} 个完成！☕ 休息5分钟吧`
       showToast(nextMsg, '🍅', '#10b981')
-      setPomCount(newCount)
-      pomCountRef.current = newCount
-      setPomPhase(nextPhase)
-      pomPhaseRef.current = nextPhase
+      setPomCount(newCount); pomCountRef.current = newCount
+      setPomPhase(nextPhase); pomPhaseRef.current = nextPhase
       setPomRemain(getPomTarget(nextPhase))
     } else {
       playBeep('work')
       showToast('休息结束，开始新的专注！', '💪', '#6366f1')
-      setPomPhase('work')
-      pomPhaseRef.current = 'work'
+      setPomPhase('work'); pomPhaseRef.current = 'work'
       setPomRemain(POMODORO_WORK)
     }
     startTsRef.current = null
   }
 
-  // 启动/停止 interval
   useEffect(() => {
-    if (running) {
-      ivRef.current = setInterval(tick, 500)
-    } else {
-      clearInterval(ivRef.current)
-    }
+    if (running) ivRef.current = setInterval(tick, 500)
+    else clearInterval(ivRef.current)
     return () => clearInterval(ivRef.current)
   }, [running])
 
-  // 切回前台时立即刷新（解决后台暂停问题）
   useEffect(() => {
-    const onVisible = () => {
-      if (runningRef.current) tick()
-    }
+    const onVisible = () => { if (runningRef.current) tick() }
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [])
 
-  // 请求通知权限
   useEffect(() => {
     if (Notification.permission === 'default') Notification.requestPermission()
   }, [])
 
   const start = () => {
-    unlockAudio()           // 用户手势时解锁 AudioContext
+    unlockAudio()
     startTsRef.current = Date.now()
     setRunning(true)
   }
   const stop = () => {
-    setRunning(false)
+    setRunning(false); setFocusMode(false)
     if (mode === 'stopwatch' && elapsed > 0) {
       doSave(elapsed, category)
       setElapsed(0); setDesc('')
@@ -266,29 +285,34 @@ function TimerView({ logs, onSave, goals, habits }) {
     }
   }
   const reset = () => {
-    setRunning(false); setElapsed(0)
+    setRunning(false); setElapsed(0); setFocusMode(false)
     startTsRef.current = null
     if (mode === 'pomodoro') { setPomPhase('work'); pomPhaseRef.current = 'work'; setPomRemain(POMODORO_WORK); setPomCount(0); pomCountRef.current = 0 }
   }
   const switchMode = m => { reset(); setMode(m); modeRef.current = m }
 
+  const saveTemplate = () => {
+    if (!desc.trim()) return
+    const already = templates.some(tp => tp.desc === desc && tp.category === category)
+    if (!already) setTemplates(ts => [{ id: Date.now(), desc, category }, ...ts.slice(0, 11)])
+  }
+  const deleteTemplate = id => setTemplates(ts => ts.filter(tp => tp.id !== id))
+
   const goal = goals.find(g => g.id === linkedGoal)
   const pomTarget = getPomTarget(pomPhase)
   const pomPct = 1 - pomRemain / pomTarget
   const C52 = 2 * Math.PI * 52
-
-  const pomPhaseLabel = pomPhase === 'work' ? '🍅 专注时间' : pomPhase === 'longbreak' ? '🌿 长休息' : '☕ 休息时间'
+  const pomPhaseLabel = pomPhase === 'work' ? t(lang,'pomWork') : pomPhase === 'longbreak' ? t(lang,'pomLong') : t(lang,'pomBreak')
   const pomPhaseColor = pomPhase === 'work' ? '' : 'pom-break'
-
-  // 今日番茄数
   const todayPom = logs.filter(l =>
     l.description?.includes('🍅') &&
     new Date(l.date).toDateString() === new Date().toDateString()
   ).length
 
+  const catName = c => lang === 'en' ? (CATEGORIES.find(x=>x.id===c)?.nameEn || c) : (CATEGORIES.find(x=>x.id===c)?.name || c)
+
   return (
     <div className="page-container">
-      {/* Toast 提醒 */}
       {toast && (
         <div className="toast" style={{ background: toast.color }}>
           <span className="toast-icon">{toast.icon}</span>
@@ -296,8 +320,40 @@ function TimerView({ logs, onSave, goals, habits }) {
         </div>
       )}
 
+      {/* ── Focus Mode Overlay ── */}
+      {focusMode && (
+        <div className="focus-overlay">
+          <div className="focus-content">
+            <div className="focus-phase-label">{mode==='pomodoro' ? pomPhaseLabel : t(lang,'focusTitle')}</div>
+            {desc && <div className="focus-task-name">{desc}</div>}
+            <div className="focus-big-time">
+              {mode==='pomodoro' ? fmt(pomRemain) : fmt(elapsed)}
+            </div>
+            {mode === 'pomodoro' && (
+              <div className="focus-pom-ring">
+                <svg viewBox="0 0 160 160" width="160" height="160">
+                  <circle cx="80" cy="80" r="68" fill="none" stroke="rgba(255,255,255,.2)" strokeWidth="10"/>
+                  <circle cx="80" cy="80" r="68" fill="none" stroke="white" strokeWidth="10"
+                    strokeDasharray={2*Math.PI*68} strokeDashoffset={2*Math.PI*68*(1-pomPct)}
+                    transform="rotate(-90 80 80)" strokeLinecap="round"/>
+                </svg>
+              </div>
+            )}
+            <div className="focus-btns">
+              {mode === 'stopwatch'
+                ? <button className="btn btn-stop" onClick={stop}>{t(lang,'stopSave')}</button>
+                : running
+                  ? <button className="btn btn-stop" onClick={() => setRunning(false)}>{t(lang,'pause')}</button>
+                  : <button className="btn btn-start" onClick={start}>{t(lang,'start')}</button>
+              }
+              <button className="btn btn-reset focus-exit-btn" onClick={() => setFocusMode(false)}>{t(lang,'exitFocus')}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="mode-toggle">
-        <button className={mode==='stopwatch'?'active':''} onClick={()=>switchMode('stopwatch')}>⏱ 计时器</button>
+        <button className={mode==='stopwatch'?'active':''} onClick={()=>switchMode('stopwatch')}>⏱ {t(lang,'timer')}</button>
         <button className={mode==='pomodoro'?'active':''}  onClick={()=>switchMode('pomodoro')}>🍅 番茄钟</button>
       </div>
 
@@ -322,7 +378,6 @@ function TimerView({ logs, onSave, goals, habits }) {
                 </text>
               )}
             </svg>
-            {/* 番茄钟说明 */}
             {!running && pomPhase === 'work' && pomCount === 0 && (
               <div className="pom-tip">专注25分→休息5分，每4个获得15分长休息<br/>完成后自动记录到统计</div>
             )}
@@ -332,21 +387,24 @@ function TimerView({ logs, onSave, goals, habits }) {
         )}
         <div className="timer-btns">
           {!running ? (
-            <button className="btn btn-start" onClick={start}>▶ 开始</button>
+            <button className="btn btn-start" onClick={start}>{t(lang,'start')}</button>
           ) : (
             <>
               {mode === 'stopwatch'
-                ? <button className="btn btn-stop" onClick={stop}>⏹ 停止保存</button>
-                : <button className="btn btn-stop" onClick={()=>{ setRunning(false) }}>⏸ 暂停</button>
+                ? <button className="btn btn-stop" onClick={stop}>{t(lang,'stopSave')}</button>
+                : <button className="btn btn-stop" onClick={()=>setRunning(false)}>{t(lang,'pause')}</button>
               }
-              <button className="btn btn-reset" onClick={reset}>↻ 重置</button>
+              <button className="btn btn-reset" onClick={reset}>{t(lang,'reset')}</button>
             </>
+          )}
+          {running && (
+            <button className="btn focus-mode-btn" onClick={() => setFocusMode(true)} title={t(lang,'focusMode')}>🎯</button>
           )}
         </div>
       </div>
 
       <div className="section">
-        <div className="section-title">分类</div>
+        <div className="section-title">{t(lang,'category')}</div>
         <div className="categories-grid">
           {CATEGORIES.map(cat => (
             <button key={cat.id}
@@ -354,43 +412,214 @@ function TimerView({ logs, onSave, goals, habits }) {
               onClick={() => !running && setCategory(cat.id)}
               style={{ borderColor: category===cat.id ? cat.color : 'transparent', backgroundColor: category===cat.id ? `${cat.color}18` : '' }}>
               <span className="cat-icon">{cat.icon}</span>
-              <span className="cat-name">{cat.name}</span>
+              <span className="cat-name">{catName(cat.id)}</span>
             </button>
           ))}
         </div>
       </div>
 
       <div className="section">
-        <div className="section-title">任务描述（可选）</div>
-        <input className="text-input" type="text" placeholder="正在做什么？"
-          value={desc} onChange={e=>setDesc(e.target.value)} disabled={running} />
+        <div className="section-title">{t(lang,'taskDesc')}</div>
+        {templates.length > 0 && (
+          <div className="templates-row">
+            {templates.map(tp => (
+              <div key={tp.id} className="template-chip-wrap">
+                <button className="template-chip"
+                  onClick={() => { if (!running) { setDesc(tp.desc); setCategory(tp.category) } }}>
+                  {CATEGORIES.find(c=>c.id===tp.category)?.icon} {tp.desc}
+                </button>
+                <button className="template-del" onClick={() => deleteTemplate(tp.id)}>✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="desc-row">
+          <input className="text-input" type="text" placeholder={lang==='zh'?'正在做什么？':'What are you working on?'}
+            value={desc} onChange={e=>setDesc(e.target.value)} disabled={running} />
+          {desc.trim() && !running && (
+            <button className="btn-secondary save-tpl-btn" onClick={saveTemplate} title={t(lang,'saveAsTemplate')}>⭐</button>
+          )}
+        </div>
       </div>
 
       <div className="section">
-        <div className="section-title">关联目标或习惯（可选）</div>
+        <div className="section-title">{t(lang,'linkGoalHabit')}</div>
         <div className="link-row">
           <select className="select-input" value={linkedGoal}
             onChange={e=>{ setLinkedGoal(e.target.value); setLinkedTask(''); setLinkedHabit('') }}
             disabled={running || !!linkedHabit}>
-            <option value="">🎯 目标...</option>
+            <option value="">{t(lang,'goalLink')}</option>
             {goals.map(g => <option key={g.id} value={g.id}>{g.icon} {g.title}</option>)}
           </select>
           <select className="select-input" value={linkedHabit}
             onChange={e=>{ setLinkedHabit(e.target.value); setLinkedGoal(''); setLinkedTask('') }}
             disabled={running || !!linkedGoal}>
-            <option value="">✅ 习惯...</option>
+            <option value="">{t(lang,'habitLink')}</option>
             {habits.map(h => <option key={h.id} value={h.id}>{h.icon} {h.title}</option>)}
           </select>
         </div>
-        {goal?.tasks?.filter(t=>!t.done).length > 0 && (
+        {goal?.tasks?.filter(tk=>!tk.done).length > 0 && (
           <select className="select-input" style={{marginTop:8}} value={linkedTask}
             onChange={e=>setLinkedTask(e.target.value)} disabled={running}>
-            <option value="">— 选择子任务 —</option>
-            {goal.tasks.filter(t=>!t.done).map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
+            <option value="">{t(lang,'taskLink')}</option>
+            {goal.tasks.filter(tk=>!tk.done).map(tk => <option key={tk.id} value={tk.id}>{tk.title}</option>)}
           </select>
         )}
       </div>
+    </div>
+  )
+}
 
+// ─── Plan View ────────────────────────────────────────────────────────────────
+function PlanView({ plans, setPlans, logs, lang }) {
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm]         = useState({ title: '', estimatedMins: 30, category: 'work' })
+  const today = todayStr()
+  const todayPlans = plans.filter(p => p.date === today)
+
+  const addPlan = () => {
+    if (!form.title.trim()) return
+    setPlans(ps => [...ps, { ...form, id: Date.now(), done: false, date: today }])
+    setForm({ title: '', estimatedMins: 30, category: 'work' })
+    setShowForm(false)
+  }
+  const togglePlan = id => setPlans(ps => ps.map(p => p.id===id ? {...p, done:!p.done} : p))
+  const deletePlan = id => setPlans(ps => ps.filter(p => p.id !== id))
+
+  const actualTime = plan => logs
+    .filter(l => l.date.slice(0,10) === today && l.description === plan.title)
+    .reduce((a,b) => a+b.duration, 0)
+
+  const doneCnt  = todayPlans.filter(p => p.done).length
+  const totalEst = todayPlans.reduce((a,b) => a + b.estimatedMins * 60, 0)
+  const totalAct = logs.filter(l => l.date.slice(0,10) === today).reduce((a,b) => a+b.duration, 0)
+
+  const pastPlans = plans.filter(p => p.date !== today)
+  const pastByDate = pastPlans.reduce((acc, p) => {
+    if (!acc[p.date]) acc[p.date] = []
+    acc[p.date].push(p); return acc
+  }, {})
+
+  return (
+    <div className="page-container">
+      <div className="page-header">
+        <div>
+          <h2>{t(lang,'dayPlanner')}</h2>
+          <div className="page-subtitle">{t(lang,'planSubtitle')}</div>
+        </div>
+        <button className="btn-primary" onClick={() => setShowForm(true)}>{t(lang,'addPlan')}</button>
+      </div>
+
+      {todayPlans.length > 0 && (
+        <div className="plan-summary">
+          <div className="plan-sum-item">
+            <div className="plan-sum-val">{doneCnt}/{todayPlans.length}</div>
+            <div className="plan-sum-lbl">{t(lang,'done')}</div>
+          </div>
+          <div className="plan-sum-item">
+            <div className="plan-sum-val">{fmtH(totalEst)}</div>
+            <div className="plan-sum-lbl">{t(lang,'planned')}</div>
+          </div>
+          <div className="plan-sum-item">
+            <div className="plan-sum-val">{fmtH(totalAct)}</div>
+            <div className="plan-sum-lbl">{t(lang,'actual')}</div>
+          </div>
+        </div>
+      )}
+
+      {showForm && (
+        <div className="modal-overlay" onClick={() => setShowForm(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <h3 className="modal-title">{lang==='zh'?'添加今日计划':'Add Task'}</h3>
+            <div className="form-group">
+              <label>{t(lang,'taskName')}</label>
+              <input className="text-input" placeholder={t(lang,'taskPlaceholder')}
+                value={form.title} onChange={e => setForm(f => ({...f, title: e.target.value}))}
+                onKeyDown={e => e.key==='Enter' && addPlan()} autoFocus />
+            </div>
+            <div className="form-group">
+              <label>{t(lang,'estimatedMins')}</label>
+              <div className="time-chips">
+                {[15,25,30,45,60,90,120].map(m => (
+                  <button key={m}
+                    className={`time-chip ${form.estimatedMins===m?'active':''}`}
+                    onClick={() => setForm(f => ({...f, estimatedMins: m}))}>
+                    {m}{lang==='zh'?'分':'m'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="form-group">
+              <label>{t(lang,'selectCat')}</label>
+              <div className="categories-grid" style={{marginTop:4}}>
+                {CATEGORIES.map(cat => (
+                  <button key={cat.id}
+                    className={`category-card ${form.category===cat.id?'active':''}`}
+                    onClick={() => setForm(f => ({...f, category: cat.id}))}
+                    style={{ borderColor: form.category===cat.id ? cat.color : 'transparent', backgroundColor: form.category===cat.id ? `${cat.color}18` : '' }}>
+                    <span className="cat-icon">{cat.icon}</span>
+                    <span className="cat-name">{lang==='en' ? cat.nameEn : cat.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button className="btn-secondary" onClick={() => setShowForm(false)}>{t(lang,'cancel')}</button>
+              <button className="btn-primary" onClick={addPlan}>{t(lang,'add')}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {todayPlans.length === 0 ? (
+        <div className="empty-state">
+          <div style={{fontSize:'3rem',marginBottom:12}}>📋</div>
+          <p>{t(lang,'noPlans')}</p>
+        </div>
+      ) : (
+        <div className="plan-list">
+          {todayPlans.map(p => {
+            const cat = CATEGORIES.find(c => c.id === p.category)
+            const act = actualTime(p)
+            return (
+              <div key={p.id} className={`plan-item ${p.done?'done':''}`}
+                style={{borderLeftColor: cat?.color}}>
+                <button className={`habit-check ${p.done?'checked':''}`} onClick={() => togglePlan(p.id)}>
+                  {p.done && '✓'}
+                </button>
+                <div className="plan-info">
+                  <div className="plan-title">{cat?.icon} {p.title}</div>
+                  <div className="plan-meta">
+                    <span>{t(lang,'est')} {p.estimatedMins}{lang==='zh'?'分':'min'}</span>
+                    {act > 0 && <span className="plan-actual"> · {t(lang,'act')} {fmtH(act)}</span>}
+                  </div>
+                </div>
+                <button className="icon-action" onClick={() => deletePlan(p.id)}>✕</button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {Object.keys(pastByDate).length > 0 && (
+        <details className="archived-section" style={{marginTop:16}}>
+          <summary>{t(lang,'history')} ({pastPlans.length})</summary>
+          {Object.entries(pastByDate).sort(([a],[b])=>b.localeCompare(a)).slice(0,7).map(([date, ps]) => (
+            <div key={date} style={{marginTop:10}}>
+              <div style={{fontSize:'.8rem',color:'var(--text-muted)',fontWeight:700,marginBottom:4}}>{date}</div>
+              {ps.map(p => (
+                <div key={p.id} style={{fontSize:'.88rem',padding:'3px 0',display:'flex',alignItems:'center',gap:6}}>
+                  <span>{p.done ? '✅' : '⬜'}</span>
+                  <span style={{color:p.done?'var(--text-muted)':'var(--text)',textDecoration:p.done?'line-through':'none'}}>
+                    {CATEGORIES.find(c=>c.id===p.category)?.icon} {p.title}
+                  </span>
+                  <span style={{marginLeft:'auto',color:'var(--text-muted)',fontSize:'.78rem'}}>{p.estimatedMins}{lang==='zh'?'分':'m'}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </details>
+      )}
     </div>
   )
 }
@@ -418,14 +647,14 @@ function GoalsView({ goals, setGoals, logs }) {
   }
 
   const addTask = gid => {
-    const t = (newTask[gid]||'').trim(); if (!t) return
-    setGoals(gs => gs.map(g => g.id===gid ? {...g, tasks:[...g.tasks,{id:Date.now(),title:t,done:false}]} : g))
+    const tk = (newTask[gid]||'').trim(); if (!tk) return
+    setGoals(gs => gs.map(g => g.id===gid ? {...g, tasks:[...g.tasks,{id:Date.now(),title:tk,done:false}]} : g))
     setNewTask(p => ({...p,[gid]:''}))
   }
   const toggleTask = (gid, tid) =>
-    setGoals(gs => gs.map(g => g.id===gid ? {...g, tasks: g.tasks.map(t=>t.id===tid?{...t,done:!t.done}:t)} : g))
+    setGoals(gs => gs.map(g => g.id===gid ? {...g, tasks: g.tasks.map(tk=>tk.id===tid?{...tk,done:!tk.done}:tk)} : g))
   const deleteTask = (gid, tid) =>
-    setGoals(gs => gs.map(g => g.id===gid ? {...g, tasks: g.tasks.filter(t=>t.id!==tid)} : g))
+    setGoals(gs => gs.map(g => g.id===gid ? {...g, tasks: g.tasks.filter(tk=>tk.id!==tid)} : g))
   const startEdit = g => {
     setForm({ title:g.title, description:g.description||'', deadline:g.deadline||'', icon:g.icon, color:g.color })
     setEditId(g.id); setShowForm(true)
@@ -497,7 +726,7 @@ function GoalsView({ goals, setGoals, logs }) {
       ) : (
         <div className="goals-list">
           {activeGoals.map(g => {
-            const done    = g.tasks.filter(t=>t.done).length
+            const done    = g.tasks.filter(tk=>tk.done).length
             const pct     = g.tasks.length > 0 ? done / g.tasks.length : 0
             const spent   = goalTime(g.id)
             const isExp   = expanded === g.id
@@ -536,11 +765,11 @@ function GoalsView({ goals, setGoals, logs }) {
 
                 {isExp && (
                   <div className="goal-tasks">
-                    {g.tasks.map(t => (
-                      <div key={t.id} className={`task-item ${t.done?'done':''}`}>
-                        <input type="checkbox" checked={t.done} onChange={()=>toggleTask(g.id,t.id)}/>
-                        <span className="task-title">{t.title}</span>
-                        <button className="icon-action" onClick={()=>deleteTask(g.id,t.id)}>✕</button>
+                    {g.tasks.map(tk => (
+                      <div key={tk.id} className={`task-item ${tk.done?'done':''}`}>
+                        <input type="checkbox" checked={tk.done} onChange={()=>toggleTask(g.id,tk.id)}/>
+                        <span className="task-title">{tk.title}</span>
+                        <button className="icon-action" onClick={()=>deleteTask(g.id,tk.id)}>✕</button>
                       </div>
                     ))}
                     <div className="add-task-row">
@@ -670,7 +899,7 @@ function StatsView({ logs, onDeleteLog, goals = [], habits = [] }) {
             {goals.filter(g=>!g.archived).map(g => {
               const goalTime = filtered.filter(l=>l.goalId===g.id).reduce((a,b)=>a+b.duration,0)
               const tasks = g.tasks || []
-              const done = tasks.filter(t=>t.done).length
+              const done = tasks.filter(tk=>tk.done).length
               const pct = tasks.length > 0 ? Math.round(done/tasks.length*100) : 0
               return (
                 <div key={g.id} className="stats-goal-item">
@@ -697,9 +926,7 @@ function StatsView({ logs, onDeleteLog, goals = [], habits = [] }) {
           <div className="section-title">✅ 习惯完成情况</div>
           <div className="stats-goal-list">
             {habits.map(h => {
-              const today = new Date().toDateString()
-              const checks = h.checks || []
-              const daysInPeriod = period==='today' ? 1 : period==='week' ? 7 : 30
+              const checks = h.history || []
               const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - daysInPeriod + 1)
               const periodChecks = checks.filter(d => new Date(d) >= cutoff).length
               const rate = Math.round(periodChecks / daysInPeriod * 100)
@@ -759,7 +986,7 @@ function HabitsView({ habits, setHabits }) {
   const toggle = id => {
     setHabits(hs => hs.map(h => {
       if (h.id !== id) return h
-      const history   = h.history || []
+      const history     = h.history || []
       const alreadyDone = history.includes(today)
       const newHistory  = alreadyDone ? history.filter(d=>d!==today) : [...history, today]
       let streak = 0
@@ -889,11 +1116,11 @@ function HabitsView({ habits, setHabits }) {
 
 // ─── Login Screen ─────────────────────────────────────────────────────────────
 function LoginScreen({ onAuth }) {
-  const [mode,     setMode]     = useState('login') // 'login' | 'register'
-  const [email,    setEmail]    = useState('')
-  const [pw,       setPw]       = useState('')
-  const [loading,  setLoading]  = useState(false)
-  const [error,    setError]    = useState('')
+  const [mode,    setMode]    = useState('login')
+  const [email,   setEmail]   = useState('')
+  const [pw,      setPw]      = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error,   setError]   = useState('')
 
   const submit = async e => {
     e.preventDefault()
@@ -903,13 +1130,13 @@ function LoginScreen({ onAuth }) {
       await onAuth(mode, email, pw)
     } catch (err) {
       const msg = {
-        'auth/invalid-email':          '邮箱格式不正确',
-        'auth/user-not-found':         '账号不存在',
-        'auth/wrong-password':         '密码错误',
-        'auth/invalid-credential':     '邮箱或密码错误',
-        'auth/email-already-in-use':   '该邮箱已注册，请直接登录',
-        'auth/weak-password':          '密码至少6位',
-        'auth/too-many-requests':      '尝试次数过多，请稍后再试',
+        'auth/invalid-email':        '邮箱格式不正确',
+        'auth/user-not-found':       '账号不存在',
+        'auth/wrong-password':       '密码错误',
+        'auth/invalid-credential':   '邮箱或密码错误',
+        'auth/email-already-in-use': '该邮箱已注册，请直接登录',
+        'auth/weak-password':        '密码至少6位',
+        'auth/too-many-requests':    '尝试次数过多，请稍后再试',
       }[err.code] || '操作失败，请重试'
       setError(msg)
     }
@@ -922,7 +1149,6 @@ function LoginScreen({ onAuth }) {
         <button className={mode==='login'?'active':''} onClick={()=>{setMode('login');setError('')}}>登录</button>
         <button className={mode==='register'?'active':''} onClick={()=>{setMode('register');setError('')}}>注册</button>
       </div>
-
       <form onSubmit={submit}>
         <div className="login-field">
           <input className="login-input" type="email" placeholder="邮箱地址"
@@ -950,58 +1176,79 @@ function useLS(key, def) {
 }
 
 export default function App() {
-  const [tab, setTab]       = useState('timer')
-  // undefined=检测中, null=未登录, object=已登录
-  const [user, setUser]     = useState(FIREBASE_CONFIGURED ? undefined : null)
-  const [authLoading, setAuthLoading] = useState(false)
+  const [tab, setTab]   = useState('timer')
+  const [user, setUser] = useState(FIREBASE_CONFIGURED ? undefined : null)
 
-  // 云端数据（Firebase 登录后）
-  const [cloudDark,   setCloudDark]   = useState(false)
-  const [cloudLogs,   setCloudLogs]   = useState([])
-  const [cloudGoals,  setCloudGoals]  = useState([])
-  const [cloudHabits, setCloudHabits] = useState([])
+  // ── Cloud data ──
+  const [cloudDark,      setCloudDark]      = useState(false)
+  const [cloudLogs,      setCloudLogs]      = useState([])
+  const [cloudGoals,     setCloudGoals]     = useState([])
+  const [cloudHabits,    setCloudHabits]    = useState([])
+  const [cloudTemplates, setCloudTemplates] = useState([])
+  const [cloudPlans,     setCloudPlans]     = useState([])
+  const [cloudLang,      setCloudLang]      = useState('zh')
 
-  // 本地数据（无 Firebase 时降级）
-  const [localDark,   setLocalDark]   = useLS('darkMode', false)
-  const [localLogs,   setLocalLogs]   = useLS('timeLogs', [])
-  const [localGoals,  setLocalGoals]  = useLS('goals', [])
-  const [localHabits, setLocalHabits] = useLS('habits', [])
+  // ── Local data ──
+  const [localDark,      setLocalDark]      = useLS('darkMode',   false)
+  const [localLogs,      setLocalLogs]      = useLS('timeLogs',   [])
+  const [localGoals,     setLocalGoals]     = useLS('goals',      [])
+  const [localHabits,    setLocalHabits]    = useLS('habits',     [])
+  const [localTemplates, setLocalTemplates] = useLS('templates',  [])
+  const [localPlans,     setLocalPlans]     = useLS('plans',      [])
+  const [localLang,      setLocalLang]      = useLS('lang',       'zh')
 
-  const isCloud = FIREBASE_CONFIGURED && !!user
-  const dark    = isCloud ? cloudDark   : localDark
-  const logs    = isCloud ? cloudLogs   : localLogs
-  const goals   = isCloud ? cloudGoals  : localGoals
-  const habits  = isCloud ? cloudHabits : localHabits
-  const setDark   = isCloud ? setCloudDark   : setLocalDark
-  const setLogs   = isCloud ? setCloudLogs   : setLocalLogs
-  const setGoals  = isCloud ? setCloudGoals  : setLocalGoals
-  const setHabits = isCloud ? setCloudHabits : setLocalHabits
+  const isCloud    = FIREBASE_CONFIGURED && !!user
+  const dark       = isCloud ? cloudDark      : localDark
+  const logs       = isCloud ? cloudLogs      : localLogs
+  const goals      = isCloud ? cloudGoals     : localGoals
+  const habits     = isCloud ? cloudHabits    : localHabits
+  const templates  = isCloud ? cloudTemplates : localTemplates
+  const plans      = isCloud ? cloudPlans     : localPlans
+  const lang       = isCloud ? cloudLang      : localLang
+  const setDark      = isCloud ? setCloudDark      : setLocalDark
+  const setLogs      = isCloud ? setCloudLogs      : setLocalLogs
+  const setGoals     = isCloud ? setCloudGoals     : setLocalGoals
+  const setHabits    = isCloud ? setCloudHabits    : setLocalHabits
+  const setTemplates = isCloud ? setCloudTemplates : setLocalTemplates
+  const setPlans     = isCloud ? setCloudPlans     : setLocalPlans
+  const setLang      = isCloud ? setCloudLang      : setLocalLang
 
-  // 监听登录状态
+  // ── PWA install prompt ──
+  const [pwaPrompt,  setPwaPrompt]  = useState(null)
+  const [pwaDismiss, setPwaDismiss] = useLS('pwaDismissed', false)
+
+  useEffect(() => {
+    const handler = e => { e.preventDefault(); setPwaPrompt(e) }
+    window.addEventListener('beforeinstallprompt', handler)
+    return () => window.removeEventListener('beforeinstallprompt', handler)
+  }, [])
+
+  // ── Auth ──
   useEffect(() => {
     if (!FIREBASE_CONFIGURED) return
     return onAuthStateChanged(auth, u => setUser(u ?? null))
   }, [])
 
-  // 登录后：订阅 Firestore 实时数据
   useEffect(() => {
     if (!user) return
     const unsub = subscribeUserData(user.uid, data => {
-      if (data.timeLogs !== undefined) setLogs(data.timeLogs)
-      if (data.goals    !== undefined) setGoals(data.goals)
-      if (data.habits   !== undefined) setHabits(data.habits)
-      if (data.darkMode !== undefined) setDark(data.darkMode)
+      if (data.timeLogs   !== undefined) setLogs(data.timeLogs)
+      if (data.goals      !== undefined) setGoals(data.goals)
+      if (data.habits     !== undefined) setHabits(data.habits)
+      if (data.darkMode   !== undefined) setDark(data.darkMode)
+      if (data.templates  !== undefined) setCloudTemplates(data.templates)
+      if (data.plans      !== undefined) setCloudPlans(data.plans)
+      if (data.lang       !== undefined) setCloudLang(data.lang)
     })
     return unsub
   }, [user])
 
-  // 数据变动时同步到 Firestore（跳过初始加载）
   const initialized = useRef(false)
   useEffect(() => {
     if (!user) return
     if (!initialized.current) { initialized.current = true; return }
-    saveUserData(user.uid, { timeLogs: logs, goals, habits, darkMode: dark })
-  }, [logs, goals, habits, dark])
+    saveUserData(user.uid, { timeLogs: logs, goals, habits, darkMode: dark, templates, plans, lang })
+  }, [logs, goals, habits, dark, templates, plans, lang])
 
   const handleAuth = async (mode, email, pw) => {
     if (mode === 'login') await login(email, pw)
@@ -1017,7 +1264,6 @@ export default function App() {
 
   const [showLoginModal, setShowLoginModal] = useState(false)
 
-  // 初始化检测中，短暂 splash 防闪烁
   if (user === undefined) {
     return (
       <div className="app">
@@ -1029,25 +1275,37 @@ export default function App() {
     )
   }
 
+  const NAV_TABS = [
+    ['timer', '⏱', t(lang,'timer')],
+    ['goals', '🎯', t(lang,'goals')],
+    ['plan',  '📋', t(lang,'plan')],
+    ['stats', '📊', t(lang,'stats')],
+    ['habits','✅', t(lang,'habits')],
+  ]
+
   return (
     <div className={`app ${dark?'dark':''}`}>
       <header className="app-header">
         <div className="header-inner">
           <div>
             <h1 className="app-title">⏳ TimeFlow</h1>
-            <p className="app-sub">今日已记录 <strong>{fmtH(todayTotal)}</strong></p>
+            <p className="app-sub">{t(lang,'todayTotal')} <strong>{fmtH(todayTotal)}</strong></p>
           </div>
           <div className="header-actions">
+            <button className="lang-btn" onClick={() => setLang(l => l==='zh'?'en':'zh')}
+              title="切换语言 / Switch Language">
+              {lang==='zh' ? 'EN' : '中'}
+            </button>
             <button className="dark-btn" onClick={()=>setDark(d=>!d)} title="深色模式">
               {dark ? '☀️' : '🌙'}
             </button>
             {user ? (
-              // 已登录：显示头像首字母，点击退出
-              <button className="avatar-btn synced" onClick={()=>{ if(confirm(`退出登录？\n(${user.email})`)) logout() }} title={`已同步：${user.email}`}>
+              <button className="avatar-btn synced"
+                onClick={()=>{ if(confirm(`退出登录？\n(${user.email})`)) logout() }}
+                title={`已同步：${user.email}`}>
                 {(user.email?.[0] ?? '?').toUpperCase()}
               </button>
             ) : (
-              // 未登录：显示同步按钮
               <button className="sync-btn" onClick={()=>setShowLoginModal(true)} title="登录以同步数据">
                 ☁️
               </button>
@@ -1056,15 +1314,31 @@ export default function App() {
         </div>
       </header>
 
+      {/* PWA install banner */}
+      {pwaPrompt && !pwaDismiss && (
+        <div className="pwa-banner">
+          <span>{t(lang,'installApp')}</span>
+          <div style={{display:'flex',gap:6,flexShrink:0}}>
+            <button className="pwa-install-btn" onClick={async () => {
+              pwaPrompt.prompt()
+              await pwaPrompt.userChoice
+              setPwaPrompt(null)
+            }}>{t(lang,'install')}</button>
+            <button className="pwa-dismiss-btn" onClick={() => setPwaDismiss(true)}>✕</button>
+          </div>
+        </div>
+      )}
+
       <main className="main-content">
-        {tab==='timer'  && <TimerView  logs={logs}   onSave={onSave}     goals={goals} habits={habits} />}
-        {tab==='goals'  && <GoalsView  goals={goals} setGoals={setGoals} logs={logs}   />}
-        {tab==='stats'  && <StatsView  logs={logs}   onDeleteLog={onDeleteLog} goals={goals} habits={habits} />}
-        {tab==='habits' && <HabitsView habits={habits} setHabits={setHabits}           />}
+        {tab==='timer'  && <TimerView  logs={logs} onSave={onSave} goals={goals} habits={habits} templates={templates} setTemplates={setTemplates} lang={lang} />}
+        {tab==='goals'  && <GoalsView  goals={goals} setGoals={setGoals} logs={logs} />}
+        {tab==='plan'   && <PlanView   plans={plans} setPlans={setPlans} logs={logs} lang={lang} />}
+        {tab==='stats'  && <StatsView  logs={logs} onDeleteLog={onDeleteLog} goals={goals} habits={habits} />}
+        {tab==='habits' && <HabitsView habits={habits} setHabits={setHabits} />}
       </main>
 
       <nav className="bottom-nav">
-        {[['timer','⏱','计时'],['goals','🎯','目标'],['stats','📊','统计'],['habits','✅','习惯']].map(([k,ic,lb])=>(
+        {NAV_TABS.map(([k,ic,lb]) => (
           <button key={k} className={`nav-btn ${tab===k?'active':''}`} onClick={()=>setTab(k)}>
             <span className="nav-ic">{ic}</span>
             <span className="nav-lb">{lb}</span>
@@ -1072,7 +1346,6 @@ export default function App() {
         ))}
       </nav>
 
-      {/* 可选登录弹窗 */}
       {showLoginModal && (
         <div className="modal-overlay" onClick={()=>setShowLoginModal(false)}>
           <div className="modal login-modal" onClick={e=>e.stopPropagation()}>
