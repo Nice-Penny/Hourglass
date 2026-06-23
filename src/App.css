@@ -910,6 +910,38 @@ input, select { font-family: inherit }
 .note-card-date { font-size: .72rem; color: var(--text-muted) }
 .note-card-actions { display: flex; gap: 2px }
 
+/* Note card top actions (checkbox + pin badge) */
+.note-card-top-actions {
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 6px; justify-content: space-between;
+}
+.note-check-btn {
+  width: 24px; height: 24px; border-radius: 50%;
+  border: 2px solid var(--text-muted); background: none;
+  color: var(--text-muted); font-size: .85rem; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all .2s; flex-shrink: 0;
+}
+.note-check-btn.checked {
+  background: var(--green); border-color: var(--green); color: #fff;
+}
+.note-check-btn:hover { border-color: var(--green); color: var(--green) }
+.note-check-btn.checked:hover { opacity: .8 }
+
+.note-checked { opacity: .55 }
+.note-checked:hover { transform: none !important; box-shadow: none !important }
+.note-done-text { text-decoration: line-through; color: var(--text-muted) !important }
+
+/* Stats subtask breakdown */
+.stats-subtask-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 3px 0 3px 10px; font-size: .78rem; color: var(--text-muted);
+  border-left: 2px solid var(--border); margin: 2px 0 0 8px;
+}
+.stats-subtask-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.stats-subtask-name.done { text-decoration: line-through }
+.stats-subtask-time { flex-shrink: 0; margin-left: 8px; font-weight: 600; color: var(--accent) }
+
 /* Note editor */
 .note-editor { padding: 0 !important; display: flex; flex-direction: column }
 .note-editor-toolbar {

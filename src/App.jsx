@@ -215,46 +215,11 @@ function TaskForm({ initial, onSave, onClose, lang }) {
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
 
-        {/* Icon + Color */}
-        <div className="form-group">
-          <label>图标</label>
-          <div className="icon-picker">
-            {TASK_ICONS.map(ic => (
-              <button key={ic} className={`icon-btn ${form.icon===ic?'active':''}`}
-                onClick={() => set({ icon: ic })}>{ic}</button>
-            ))}
-          </div>
-        </div>
-        <div className="form-group">
-          <label>{lang==='zh'?'颜色':'Color'}</label>
-          <div className="color-picker">
-            {TASK_COLORS.map(c => (
-              <button key={c} className={`color-btn ${form.color===c?'active':''}`}
-                style={{ background: c }} onClick={() => set({ color: c })} />
-            ))}
-          </div>
-        </div>
-
         {/* Title */}
         <div className="form-group">
           <label>{t(lang,'taskTitle')} *</label>
           <input className="text-input" placeholder={t(lang,'taskTitlePh')} value={form.title}
             onChange={e => set({ title: e.target.value })} autoFocus />
-        </div>
-
-        {/* Category */}
-        <div className="form-group">
-          <label>{t(lang,'category')}</label>
-          <div className="categories-grid" style={{ marginTop: 4 }}>
-            {CATEGORIES.map(cat => (
-              <button key={cat.id} className={`category-card ${form.category===cat.id?'active':''}`}
-                onClick={() => set({ category: cat.id })}
-                style={{ borderColor: form.category===cat.id ? cat.color : 'transparent', backgroundColor: form.category===cat.id ? `${cat.color}18` : '' }}>
-                <span className="cat-icon">{cat.icon}</span>
-                <span className="cat-name">{lang==='en' ? cat.nameEn : cat.name}</span>
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* Repeat */}
@@ -288,15 +253,6 @@ function TaskForm({ initial, onSave, onClose, lang }) {
           )}
         </div>
 
-        {/* Deadline — only for recurring tasks, not one-time */}
-        {form.repeat !== 'none' && form.repeat !== 'daily' && (
-          <div className="form-group">
-            <label>{t(lang,'deadline')}</label>
-            <input className="text-input" type="date" value={form.deadline}
-              onChange={e => set({ deadline: e.target.value })} />
-          </div>
-        )}
-
         {/* Description */}
         <div className="form-group">
           <label>{t(lang,'description')}</label>
@@ -320,6 +276,13 @@ function TaskForm({ initial, onSave, onClose, lang }) {
               <button className="icon-action" onClick={() => deleteSub(s.id)}>✕</button>
             </div>
           ))}
+        </div>
+
+        {/* Deadline — at the bottom for all repeat types */}
+        <div className="form-group">
+          <label>{t(lang,'deadline')}</label>
+          <input className="text-input" type="date" value={form.deadline}
+            onChange={e => set({ deadline: e.target.value })} />
         </div>
 
         <div className="modal-actions">
@@ -557,12 +520,14 @@ function TimerView({ logs, onSave, tasks, templates, setTemplates, lang }) {
 
   function doSave(dur, label) {
     const cat = CATEGORIES.find(c => c.id === categoryRef.current)
+    const lt = linkedTaskRef.current
+    const [taskId, subTaskId] = lt.includes('__') ? lt.split('__') : [lt, undefined]
     onSave({
       id: Date.now(), category: categoryRef.current,
       categoryName: cat.name, categoryColor: cat.color, categoryIcon: cat.icon,
       description: descRef.current || label,
       duration: dur, date: new Date().toISOString(),
-      taskId: linkedTaskRef.current,
+      taskId, subTaskId,
     })
   }
 
@@ -750,7 +715,14 @@ function TimerView({ logs, onSave, tasks, templates, setTemplates, lang }) {
         <div className="section-title">{t(lang,'linkTask')}</div>
         <select className="select-input" value={linkedTask} onChange={e=>setLinkedTask(e.target.value)} disabled={running}>
           <option value="">— {lang==='zh'?'关联任务':'Link a task'} —</option>
-          {activeTasks.map(tk => <option key={tk.id} value={String(tk.id)}>{tk.icon} {tk.title}</option>)}
+          {activeTasks.map(tk => (
+            <React.Fragment key={tk.id}>
+              <option value={String(tk.id)}>{tk.icon} {tk.title}</option>
+              {(tk.subtasks||[]).map(s => (
+                <option key={s.id} value={`${tk.id}__${s.id}`}>　└ {s.title}</option>
+              ))}
+            </React.Fragment>
+          ))}
         </select>
       </div>
     </div>
@@ -825,7 +797,8 @@ function StatsView({ logs, onDeleteLog, tasks, lang }) {
           <div className="section-title">📋 {t(lang,'taskProgress')}</div>
           <div className="stats-goal-list">
             {activeTasks.map(tk => {
-              const tkTime = filtered.filter(l=>l.taskId===String(tk.id)).reduce((a,b)=>a+b.duration,0)
+              const tkLogs = filtered.filter(l=>l.taskId===String(tk.id))
+              const tkTime = tkLogs.reduce((a,b)=>a+b.duration,0)
               const subs = tk.subtasks || []
               const done = subs.filter(s=>s.done).length
               const pct  = subs.length > 0 ? Math.round(done/subs.length*100) : null
@@ -858,6 +831,15 @@ function StatsView({ logs, onDeleteLog, tasks, lang }) {
                       <div className="stats-progress-fill" style={{width:`${pct??rate??0}%`, background: tk.color||'var(--accent)'}} />
                     </div>
                   )}
+                  {subs.length > 0 && subs.map(s => {
+                    const sTime = tkLogs.filter(l=>l.subTaskId===String(s.id)).reduce((a,b)=>a+b.duration,0)
+                    return (
+                      <div key={s.id} className="stats-subtask-row">
+                        <span className={`stats-subtask-name ${s.done?'done':''}`}>└ {s.title}</span>
+                        <span className="stats-subtask-time">{sTime > 0 ? fmtH(sTime) : s.done ? '✓' : '—'}</span>
+                      </div>
+                    )
+                  })}
                 </div>
               )
             })}
@@ -904,22 +886,24 @@ function NotesView({ notes, setNotes, lang, dark }) {
   const saveNote = () => {
     if (!form.content.trim() && !form.title.trim()) { setEditId(null); return }
     if (editId === 'new') {
-      setNotes(ns => [{ ...form, id: Date.now(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }, ...ns])
+      setNotes(ns => [{ ...form, id: Date.now(), checked: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }, ...ns])
     } else {
       setNotes(ns => ns.map(n => n.id === editId ? { ...n, ...form, updatedAt: new Date().toISOString() } : n))
     }
     setEditId(null)
   }
 
-  const deleteNote = id => { if (confirm(lang==='zh'?'确定删除这条备忘？':'Delete this note?')) setNotes(ns => ns.filter(n => n.id !== id)) }
-  const togglePin  = id => setNotes(ns => ns.map(n => n.id===id ? {...n, pinned:!n.pinned} : n))
+  const deleteNote  = id => { if (confirm(lang==='zh'?'确定删除这条备忘？':'Delete this note?')) setNotes(ns => ns.filter(n => n.id !== id)) }
+  const togglePin   = id => setNotes(ns => ns.map(n => n.id===id ? {...n, pinned:!n.pinned} : n))
+  const toggleCheck = id => setNotes(ns => ns.map(n => n.id===id ? {...n, checked:!n.checked} : n))
 
   const filtered = notes.filter(n =>
     !search || n.title.toLowerCase().includes(search.toLowerCase()) || n.content.toLowerCase().includes(search.toLowerCase())
   )
-  const pinned   = filtered.filter(n => n.pinned)
-  const unpinned = filtered.filter(n => !n.pinned)
-  const display  = [...pinned, ...unpinned]
+  const pinned   = filtered.filter(n => n.pinned && !n.checked)
+  const unchecked = filtered.filter(n => !n.pinned && !n.checked)
+  const checked  = filtered.filter(n => n.checked)
+  const display  = [...pinned, ...unchecked, ...checked]
 
   const fmtDate = iso => {
     const d = new Date(iso)
@@ -987,14 +971,19 @@ function NotesView({ notes, setNotes, lang, dark }) {
             const ci = NOTE_COLORS.indexOf(n.color)
             const bg = dark ? (NOTE_COLORS_DARK[ci] ?? '#1e293b') : n.color
             return (
-              <div key={n.id} className="note-card" style={{background: bg}} onClick={() => openEdit(n)}>
-                {n.pinned && <div className="note-pin-badge">📌</div>}
-                {n.title && <div className="note-card-title">{n.title}</div>}
-                <div className="note-card-content">{n.content}</div>
+              <div key={n.id} className={`note-card ${n.checked?'note-checked':''}`} style={{background: bg}} onClick={() => !n.checked && openEdit(n)}>
+                <div className="note-card-top-actions" onClick={e => e.stopPropagation()}>
+                  <button className={`note-check-btn ${n.checked?'checked':''}`} onClick={() => toggleCheck(n.id)} title={n.checked?(lang==='zh'?'取消完成':'Uncheck'):(lang==='zh'?'标记完成':'Mark done')}>
+                    {n.checked ? '✓' : '○'}
+                  </button>
+                  {n.pinned && !n.checked && <span className="note-pin-badge">📌</span>}
+                </div>
+                {n.title && <div className={`note-card-title ${n.checked?'note-done-text':''}`}>{n.title}</div>}
+                <div className={`note-card-content ${n.checked?'note-done-text':''}`}>{n.content}</div>
                 <div className="note-card-footer">
                   <span className="note-card-date">{fmtDate(n.updatedAt || n.createdAt)}</span>
                   <div className="note-card-actions" onClick={e => e.stopPropagation()}>
-                    <button className="icon-action" onClick={() => togglePin(n.id)} title={n.pinned?t(lang,'unpin'):t(lang,'pin')}>📌</button>
+                    {!n.checked && <button className="icon-action" onClick={() => togglePin(n.id)} title={n.pinned?t(lang,'unpin'):t(lang,'pin')}>📌</button>}
                     <button className="icon-action" onClick={() => deleteNote(n.id)}>🗑</button>
                   </div>
                 </div>
