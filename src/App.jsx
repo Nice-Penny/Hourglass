@@ -282,8 +282,8 @@ function TaskForm({ initial, onSave, onClose, lang }) {
           )}
         </div>
 
-        {/* Deadline (for non-daily) */}
-        {form.repeat !== 'daily' && (
+        {/* Deadline — only for recurring tasks, not one-time */}
+        {form.repeat !== 'none' && form.repeat !== 'daily' && (
           <div className="form-group">
             <label>{t(lang,'deadline')}</label>
             <input className="text-input" type="date" value={form.deadline}
@@ -324,6 +324,97 @@ function TaskForm({ initial, onSave, onClose, lang }) {
           }}>{t(lang,'save')}</button>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ─── Task Card (extracted to allow useState per card) ────────────────────────
+function TaskCard({ tk, today, logs, lang, last7, weekLabels, onToggle, onToggleSub, onEdit, onArchive, onDelete }) {
+  const [expanded, setExpanded] = useState(false)
+  const doneToday = (tk.history||[]).includes(today)
+  const subs      = tk.subtasks || []
+  const subsDone  = subs.filter(s => s.done).length
+  const subsPct   = subs.length > 0 ? subsDone / subs.length : 0
+  const logTime   = logs.filter(l => l.taskId === String(tk.id)).reduce((a,b)=>a+b.duration,0)
+  const cat       = CATEGORIES.find(c => c.id === tk.category)
+  const dl        = tk.deadline ? Math.ceil((new Date(tk.deadline) - new Date()) / 86400000) : null
+  const isRec     = tk.repeat && tk.repeat !== 'none'
+
+  const repeatLabel = () => {
+    if (!isRec) return null
+    if (tk.repeat === 'daily')  return lang==='zh' ? '每天' : 'Daily'
+    if (tk.repeat === 'weekly') return lang==='zh'
+      ? `每周${(tk.weekDays||[]).map(d=>WEEK_LABELS_ZH[d]).join('')}`
+      : `Weekly ${(tk.weekDays||[]).map(d=>WEEK_LABELS_EN[d]).join(' ')}`
+    if (tk.repeat === 'custom') return lang==='zh' ? `每${tk.intervalDays}天` : `Every ${tk.intervalDays}d`
+    return null
+  }
+  const repLabel = repeatLabel()
+
+  return (
+    <div className={`task-card ${doneToday?'done-card':''} ${tk.archived?'archived-card':''}`}
+      style={{ borderLeft: `4px solid ${tk.color || cat?.color || '#6b7280'}` }}>
+      <div className="task-card-main">
+        {!tk.archived && (
+          <button className={`habit-check ${doneToday?'checked':''}`} onClick={() => onToggle(tk.id)}>
+            {doneToday && '✓'}
+          </button>
+        )}
+        <div className="task-card-info" onClick={() => setExpanded(e=>!e)} style={{cursor:'pointer',flex:1,minWidth:0}}>
+          <div className="task-card-title">
+            <span className="task-card-icon">{tk.icon}</span>
+            <span className={doneToday ? 'task-done-text' : ''}>{tk.title}</span>
+          </div>
+          <div className="task-card-badges">
+            {repLabel && <span className="badge badge-repeat">{repLabel}</span>}
+            {dl !== null && (
+              <span className={`badge ${dl<=0?'badge-urgent':dl<=7?'badge-warn':'badge-ok'}`}>
+                {dl > 0 ? `${dl}${lang==='zh'?'天':'d'}` : dl===0?(lang==='zh'?'今天':'Today'):(lang==='zh'?'已逾期':'Overdue')}
+              </span>
+            )}
+            {isRec && tk.streak > 0 && <span className="badge badge-streak">🔥 {tk.streak}{lang==='zh'?'天':''}</span>}
+            {logTime > 0 && <span className="badge badge-time">{fmtH(logTime)}</span>}
+          </div>
+        </div>
+        <div className="task-card-actions">
+          <button className="icon-action" onClick={() => onEdit(tk)} title={t(lang,'edit')}>✏️</button>
+          <button className="icon-action" onClick={() => onArchive(tk.id)} title={t(lang,'archive')}>{tk.archived?'↩':'📦'}</button>
+          <button className="icon-action" onClick={() => onDelete(tk.id)} title={t(lang,'delete')}>🗑</button>
+        </div>
+      </div>
+
+      {subs.length > 0 && (
+        <div className="task-sub-progress">
+          <div className="progress-bar"><div className="progress-fill" style={{width:`${subsPct*100}%`,background:tk.color||'var(--accent)'}}/></div>
+          <span className="progress-text">{subsDone}/{subs.length}</span>
+        </div>
+      )}
+
+      {expanded && (
+        <div className="task-card-expand">
+          {subs.length > 0 && (
+            <div className="subtask-list">
+              {subs.map(s => (
+                <label key={s.id} className={`subtask-item ${s.done?'done':''}`}>
+                  <input type="checkbox" checked={s.done} onChange={() => onToggleSub(tk.id, s.id)} />
+                  <span>{s.title}</span>
+                </label>
+              ))}
+            </div>
+          )}
+          {isRec && (
+            <div className="task-dot-row">
+              {last7.map(d => (
+                <div key={d} className="task-dot-cell">
+                  <div className={`h-dot ${(tk.history||[]).includes(d)?'done':''}`}/>
+                  <div className="task-dot-label">{weekLabels[new Date(d+'T12:00').getDay()]}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          {tk.description && <div className="task-desc-text">{tk.description}</div>}
+        </div>
+      )}
     </div>
   )
 }
@@ -375,17 +466,6 @@ function TasksView({ tasks, setTasks, logs, lang }) {
     return d.toISOString().slice(0, 10)
   })
   const weekLabels = lang === 'en' ? WEEK_LABELS_EN : WEEK_LABELS_ZH
-
-  const repeatLabel = tk => {
-    if (!tk.repeat || tk.repeat === 'none') return null
-    if (tk.repeat === 'daily')  return lang==='zh' ? '每天' : 'Daily'
-    if (tk.repeat === 'weekly') return lang==='zh'
-      ? `每周${(tk.weekDays||[]).map(d=>WEEK_LABELS_ZH[d]).join('')}`
-      : `Weekly ${(tk.weekDays||[]).map(d=>WEEK_LABELS_EN[d]).join(' ')}`
-    if (tk.repeat === 'custom') return lang==='zh' ? `每${tk.intervalDays}天` : `Every ${tk.intervalDays}d`
-    return null
-  }
-
   const todayDoneCount = todayTasks.filter(tk => (tk.history||[]).includes(today)).length
 
   return (
@@ -415,98 +495,12 @@ function TasksView({ tasks, setTasks, logs, lang }) {
         </div>
       ) : (
         <div className="task-cards">
-          {displayList.map(tk => {
-            const doneToday   = (tk.history||[]).includes(today)
-            const subs        = tk.subtasks || []
-            const subsDone    = subs.filter(s => s.done).length
-            const subsPct     = subs.length > 0 ? subsDone / subs.length : 0
-            const logTime     = logs.filter(l => l.taskId === String(tk.id)).reduce((a,b)=>a+b.duration,0)
-            const cat         = CATEGORIES.find(c => c.id === tk.category)
-            const dl          = tk.deadline ? Math.ceil((new Date(tk.deadline) - new Date()) / 86400000) : null
-            const repLabel    = repeatLabel(tk)
-            const isRecurring = tk.repeat && tk.repeat !== 'none'
-            const [expanded, setExpanded] = useState(false)
-
-            return (
-              <div key={tk.id} className={`task-card ${doneToday?'done-card':''} ${tk.archived?'archived-card':''}`}
-                style={{ borderLeft: `4px solid ${tk.color || cat?.color || '#6b7280'}` }}>
-                <div className="task-card-main">
-                  {/* Check button */}
-                  {!tk.archived && (
-                    <button className={`habit-check ${doneToday?'checked':''}`} onClick={() => toggleDone(tk.id)}>
-                      {doneToday && '✓'}
-                    </button>
-                  )}
-
-                  {/* Info */}
-                  <div className="task-card-info" onClick={() => setExpanded(e=>!e)} style={{cursor:'pointer',flex:1,minWidth:0}}>
-                    <div className="task-card-title">
-                      <span className="task-card-icon">{tk.icon}</span>
-                      <span className={doneToday ? 'task-done-text' : ''}>{tk.title}</span>
-                    </div>
-                    <div className="task-card-badges">
-                      {repLabel && <span className="badge badge-repeat">{repLabel}</span>}
-                      {dl !== null && (
-                        <span className={`badge ${dl<=0?'badge-urgent':dl<=7?'badge-warn':'badge-ok'}`}>
-                          {dl > 0 ? `${dl}${lang==='zh'?'天':'d'}` : dl===0?(lang==='zh'?'今天':'Today'):(lang==='zh'?'已逾期':'Overdue')}
-                        </span>
-                      )}
-                      {isRecurring && tk.streak > 0 && (
-                        <span className="badge badge-streak">🔥 {tk.streak}{lang==='zh'?'天':''}</span>
-                      )}
-                      {logTime > 0 && <span className="badge badge-time">{fmtH(logTime)}</span>}
-                    </div>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="task-card-actions">
-                    <button className="icon-action" onClick={() => setEditTask(tk)} title={t(lang,'edit')}>✏️</button>
-                    <button className="icon-action" onClick={() => archiveTask(tk.id)} title={t(lang,'archive')}>
-                      {tk.archived ? '↩' : '📦'}
-                    </button>
-                    <button className="icon-action" onClick={() => deleteTask(tk.id)} title={t(lang,'delete')}>🗑</button>
-                  </div>
-                </div>
-
-                {/* Subtasks progress */}
-                {subs.length > 0 && (
-                  <div className="task-sub-progress">
-                    <div className="progress-bar">
-                      <div className="progress-fill" style={{ width: `${subsPct*100}%`, background: tk.color || 'var(--accent)' }} />
-                    </div>
-                    <span className="progress-text">{subsDone}/{subs.length}</span>
-                  </div>
-                )}
-
-                {/* Expanded: subtasks + 7-day grid */}
-                {expanded && (
-                  <div className="task-card-expand">
-                    {subs.length > 0 && (
-                      <div className="subtask-list">
-                        {subs.map(s => (
-                          <label key={s.id} className={`subtask-item ${s.done?'done':''}`}>
-                            <input type="checkbox" checked={s.done} onChange={() => toggleSubtask(tk.id, s.id)} />
-                            <span>{s.title}</span>
-                          </label>
-                        ))}
-                      </div>
-                    )}
-                    {isRecurring && (
-                      <div className="task-dot-row">
-                        {last7.map((d, i) => (
-                          <div key={d} className="task-dot-cell">
-                            <div className={`h-dot ${(tk.history||[]).includes(d)?'done':''}`} />
-                            <div className="task-dot-label">{weekLabels[new Date(d+'T12:00').getDay()]}</div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {tk.description && <div className="task-desc-text">{tk.description}</div>}
-                  </div>
-                )}
-              </div>
-            )
-          })}
+          {displayList.map(tk => (
+            <TaskCard key={tk.id} tk={tk} today={today} logs={logs} lang={lang}
+              last7={last7} weekLabels={weekLabels}
+              onToggle={toggleDone} onToggleSub={toggleSubtask}
+              onEdit={setEditTask} onArchive={archiveTask} onDelete={deleteTask} />
+          ))}
         </div>
       )}
 
