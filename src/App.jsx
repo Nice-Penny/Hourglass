@@ -34,8 +34,8 @@ const T = {
     cancel:'取消', save:'保存', add:'添加', edit:'编辑', delete:'删除', archive:'归档', restore:'恢复',
     addTask:'+ 新建任务', taskTitle:'任务名称', taskTitlePh:'任务名称...',
     description:'描述', descPh:'详细描述...',
-    repeat:'重复设置', repeatNone:'不重复（今天）', repeatDaily:'每天', repeatWeekly:'每周', repeatCustom:'每隔N天',
-    intervalDays:'间隔天数', deadline:'截止日期',
+    repeat:'重复设置', repeatNone:'不重复', repeatDaily:'每天', repeatWeekly:'每周', repeatCustom:'每隔N天',
+    intervalDays:'间隔天数', deadline:'截止日期', date:'日期',
     subtasks:'子任务', addSubtask:'添加子任务...',
     todayTab:'今天', allTab:'全部', archTab:'归档',
     doneToday:'今天已完成', streak:'连续', days:'天',
@@ -61,8 +61,8 @@ const T = {
     cancel:'Cancel', save:'Save', add:'Add', edit:'Edit', delete:'Delete', archive:'Archive', restore:'Restore',
     addTask:'+ New Task', taskTitle:'Task Name', taskTitlePh:'Task name...',
     description:'Description', descPh:'Details...',
-    repeat:'Repeat', repeatNone:'No repeat (today)', repeatDaily:'Every day', repeatWeekly:'Weekly', repeatCustom:'Every N days',
-    intervalDays:'Interval (days)', deadline:'Deadline',
+    repeat:'Repeat', repeatNone:'No repeat', repeatDaily:'Every day', repeatWeekly:'Weekly', repeatCustom:'Every N days',
+    intervalDays:'Interval (days)', deadline:'Deadline', date:'Date',
     subtasks:'Subtasks', addSubtask:'Add subtask...',
     todayTab:'Today', allTab:'All', archTab:'Archived',
     doneToday:'Done today', streak:'Streak', days:'days',
@@ -96,7 +96,7 @@ function todayStr() { return new Date().toISOString().slice(0, 10) }
 function isDueToday(task) {
   const today = todayStr()
   const rep = task.repeat || 'none'
-  if (rep === 'none')   return !task.deadline || task.deadline >= today
+  if (rep === 'none')   return !task.deadline || task.deadline <= today
   if (rep === 'daily')  return true
   if (rep === 'weekly') return (task.weekDays || []).includes(new Date().getDay())
   if (rep === 'custom') {
@@ -278,9 +278,14 @@ function TaskForm({ initial, onSave, onClose, lang }) {
           ))}
         </div>
 
-        {/* Deadline — at the bottom for all repeat types */}
+        {/* Deadline / Date — label differs by repeat type */}
         <div className="form-group">
-          <label>{t(lang,'deadline')}</label>
+          <label>{form.repeat === 'none' ? t(lang,'date') : t(lang,'deadline')}</label>
+          {form.repeat === 'none' && (
+            <div style={{fontSize:'.78rem',color:'var(--text-muted)',marginBottom:4}}>
+              {lang==='zh' ? '不填则默认为今天的任务' : 'Leave blank to default to today'}
+            </div>
+          )}
           <div style={{display:'flex',gap:8,alignItems:'center'}}>
             <input className="text-input" type="date" value={form.deadline}
               onChange={e => set({ deadline: e.target.value })} style={{flex:1}} />
@@ -1107,13 +1112,16 @@ function NotesView({ notes, setNotes, lang, dark }) {
             const bg = dark ? (NOTE_COLORS_DARK[ci] ?? '#1e293b') : n.color
             return (
               <div key={n.id} className={`note-card ${n.checked?'note-checked':''}`} style={{background: bg}} onClick={() => !n.checked && openEdit(n)}>
-                <div className="note-card-top-actions" onClick={e => e.stopPropagation()}>
-                  <button className={`note-check-btn ${n.checked?'checked':''}`} onClick={() => toggleCheck(n.id)} title={n.checked?(lang==='zh'?'取消完成':'Uncheck'):(lang==='zh'?'标记完成':'Mark done')}>
-                    {n.checked ? '✓' : '○'}
-                  </button>
-                  {n.pinned && !n.checked && <span className="note-pin-badge">📌</span>}
+                {n.pinned && !n.checked && <div className="note-pin-badge">📌</div>}
+                <div className="note-card-header" onClick={e => e.stopPropagation()}>
+                  <button className={`note-card-check-sm ${n.checked?'checked':''}`}
+                    onClick={() => toggleCheck(n.id)}
+                    title={n.checked?(lang==='zh'?'取消完成':'Uncheck'):(lang==='zh'?'标记完成':'Mark done')} />
+                  {n.title
+                    ? <div className={`note-card-title ${n.checked?'note-done-text':''}`} onClick={() => !n.checked && openEdit(n)} style={{cursor:'pointer'}}>{n.title}</div>
+                    : <div className="note-card-title-empty" onClick={() => !n.checked && openEdit(n)} style={{cursor:'pointer'}}>{lang==='zh'?'备忘录':'Note'}</div>
+                  }
                 </div>
-                {n.title && <div className={`note-card-title ${n.checked?'note-done-text':''}`}>{n.title}</div>}
                 {n.content ? <div className={`note-card-content ${n.checked?'note-done-text':''}`}>{n.content}</div> : null}
                 {(n.checklist||[]).length > 0 && (
                   <div className="note-card-items" onClick={e => e.stopPropagation()}>

@@ -910,23 +910,22 @@ input, select { font-family: inherit }
 .note-card-date { font-size: .72rem; color: var(--text-muted) }
 .note-card-actions { display: flex; gap: 2px }
 
-/* Note card top actions (checkbox + pin badge) */
-.note-card-top-actions {
-  display: flex; align-items: center; gap: 6px;
-  margin-bottom: 6px; justify-content: space-between;
+/* Note card header — small circle inline with title */
+.note-card-header {
+  display: flex; align-items: center; gap: 7px; margin-bottom: 5px;
 }
-.note-check-btn {
-  width: 24px; height: 24px; border-radius: 50%;
-  border: 2px solid var(--text-muted); background: none;
-  color: var(--text-muted); font-size: .85rem; font-weight: 700;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer; transition: all .2s; flex-shrink: 0;
+.note-card-check-sm {
+  width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0;
+  border: 1.5px solid var(--text-muted); background: none; cursor: pointer;
+  transition: all .15s; position: relative;
 }
-.note-check-btn.checked {
-  background: var(--green); border-color: var(--green); color: #fff;
+.note-card-check-sm:hover { border-color: var(--green) }
+.note-card-check-sm.checked { background: var(--green); border-color: var(--green) }
+.note-card-check-sm.checked::after {
+  content: '✓'; position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%,-50%); font-size: .55rem; color: #fff; font-weight: 700;
 }
-.note-check-btn:hover { border-color: var(--green); color: var(--green) }
-.note-check-btn.checked:hover { opacity: .8 }
+.note-card-title-empty { font-size: .82rem; color: var(--text-muted); font-style: italic }
 
 .note-checked { opacity: .55 }
 .note-checked:hover { transform: none !important; box-shadow: none !important }
