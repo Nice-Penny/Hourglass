@@ -48,7 +48,7 @@ const T = {
     today:'今天', thisWeekTab:'本周', thisMonth:'本月',
     notes:'备忘录', newNote:'+ 新建', searchNotes:'搜索备忘录...', noNotes:'还没有备忘录，记下你的第一个想法吧！',
     noteTitlePh:'标题（可选）', noteContentPh:'记下你的思路、点子或想法...', pinned:'已置顶',
-    pin:'置顶', unpin:'取消置顶',
+    pin:'置顶', unpin:'取消置顶', addListItem:'添加一项...', switchToList:'切换为清单', switchToText:'切换为文本',
   },
   en: {
     timer:'Timer', tasks:'Tasks', stats:'Stats',
@@ -75,7 +75,7 @@ const T = {
     today:'Today', thisWeekTab:'This Week', thisMonth:'This Month',
     notes:'Notes', newNote:'+ New', searchNotes:'Search notes...', noNotes:'No notes yet. Write down your first idea!',
     noteTitlePh:'Title (optional)', noteContentPh:'Write your thoughts, ideas or plans...', pinned:'Pinned',
-    pin:'Pin', unpin:'Unpin',
+    pin:'Pin', unpin:'Unpin', addListItem:'Add item...', switchToList:'Switch to list', switchToText:'Switch to text',
   }
 }
 const t = (lang, key) => T[lang]?.[key] ?? key
@@ -306,7 +306,11 @@ function TaskCard({ tk, today, logs, lang, last7, weekLabels, onToggle, onToggle
   const subsPct   = subs.length > 0 ? subsDone / subs.length : 0
   const logTime   = logs.filter(l => l.taskId === String(tk.id)).reduce((a,b)=>a+b.duration,0)
   const cat       = CATEGORIES.find(c => c.id === tk.category)
-  const dl        = tk.deadline ? Math.ceil((new Date(tk.deadline) - new Date()) / 86400000) : null
+  const dl        = tk.deadline ? (() => {
+    if (tk.deadline < today) return -1
+    if (tk.deadline === today) return 0
+    return Math.round((new Date(tk.deadline+'T12:00') - new Date()) / 86400000)
+  })() : null
   const isRec     = tk.repeat && tk.repeat !== 'none'
 
   const repeatLabel = () => {
@@ -337,8 +341,8 @@ function TaskCard({ tk, today, logs, lang, last7, weekLabels, onToggle, onToggle
           <div className="task-card-badges">
             {repLabel && <span className="badge badge-repeat">{repLabel}</span>}
             {dl !== null && (
-              <span className={`badge ${dl<=0?'badge-urgent':dl<=7?'badge-warn':'badge-ok'}`}>
-                {dl > 0 ? `${dl}${lang==='zh'?'天':'d'}` : dl===0?(lang==='zh'?'今天':'Today'):(lang==='zh'?'已逾期':'Overdue')}
+              <span className={`badge ${dl<0?'badge-urgent':dl<=7?'badge-warn':'badge-ok'}`}>
+                {dl > 0 ? (lang==='zh'?`截止${dl}天`:`${dl}d left`) : dl===0?(lang==='zh'?'截止今天':'Due today'):(lang==='zh'?'已逾期':'Overdue')}
               </span>
             )}
             {isRec && tk.streak > 0 && <span className="badge badge-streak">🔥 {tk.streak}{lang==='zh'?'天':''}</span>}
@@ -478,6 +482,72 @@ function TasksView({ tasks, setTasks, logs, lang }) {
       )}
       {editTask && (
         <TaskForm lang={lang} initial={editTask} onClose={() => setEditTask(null)} onSave={form => { saveTask(form); setEditTask(null) }} />
+      )}
+    </div>
+  )
+}
+
+// ─── Task Picker (collapsible subtasks) ──────────────────────────────────────
+function TaskPicker({ tasks, value, onChange, lang, disabled }) {
+  const [open, setOpen]         = useState(false)
+  const [expanded, setExpanded] = useState(new Set())
+  const activeTasks = tasks.filter(tk => !tk.archived)
+
+  const getLabel = () => {
+    if (!value) return lang==='zh' ? '— 关联任务 —' : '— Link a task —'
+    if (value.includes('__')) {
+      const [tid, sid] = value.split('__')
+      const task = activeTasks.find(t => String(t.id) === tid)
+      const sub  = (task?.subtasks||[]).find(s => String(s.id) === sid)
+      return sub ? `${task?.icon} ${task?.title} › ${sub.title}` : value
+    }
+    const task = activeTasks.find(t => String(t.id) === value)
+    return task ? `${task.icon} ${task.title}` : (lang==='zh' ? '— 关联任务 —' : '— Link a task —')
+  }
+
+  const toggleExpand = (id, e) => {
+    e.stopPropagation()
+    setExpanded(s => { const ns = new Set(s); ns.has(id) ? ns.delete(id) : ns.add(id); return ns })
+  }
+  const select = v => { onChange(v); setOpen(false) }
+
+  return (
+    <div className="task-picker" style={{ position: 'relative' }}>
+      <button className={`task-picker-btn ${disabled?'disabled':''}`}
+        onClick={() => !disabled && setOpen(o => !o)} disabled={disabled}>
+        <span className="task-picker-label">{getLabel()}</span>
+        <span className={`task-picker-arrow ${open?'open':''}`}>▾</span>
+      </button>
+      {open && (
+        <>
+          <div className="task-picker-backdrop" onClick={() => setOpen(false)} />
+          <div className="task-picker-dropdown">
+            <div className="task-picker-item none-item" onClick={() => select('')}>
+              <span style={{color:'var(--text-muted)',fontSize:'.88rem'}}>{lang==='zh'?'— 不关联 —':'— None —'}</span>
+            </div>
+            {activeTasks.map(tk => (
+              <div key={tk.id}>
+                <div className={`task-picker-item ${value===String(tk.id)?'active':''}`}>
+                  <span className="task-picker-name" onClick={() => select(String(tk.id))}>
+                    {tk.icon} {tk.title}
+                  </span>
+                  {(tk.subtasks||[]).length > 0 && (
+                    <button className="task-picker-expand" onClick={e => toggleExpand(tk.id, e)}>
+                      {expanded.has(tk.id) ? '▾' : '▸'}
+                    </button>
+                  )}
+                </div>
+                {expanded.has(tk.id) && (tk.subtasks||[]).map(s => (
+                  <div key={s.id}
+                    className={`task-picker-item task-picker-sub ${value===`${tk.id}__${s.id}`?'active':''}`}
+                    onClick={() => select(`${tk.id}__${s.id}`)}>
+                    └ {s.title}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   )
@@ -713,17 +783,7 @@ function TimerView({ logs, onSave, tasks, templates, setTemplates, lang }) {
 
       <div className="section">
         <div className="section-title">{t(lang,'linkTask')}</div>
-        <select className="select-input" value={linkedTask} onChange={e=>setLinkedTask(e.target.value)} disabled={running}>
-          <option value="">— {lang==='zh'?'关联任务':'Link a task'} —</option>
-          {activeTasks.map(tk => (
-            <React.Fragment key={tk.id}>
-              <option value={String(tk.id)}>{tk.icon} {tk.title}</option>
-              {(tk.subtasks||[]).map(s => (
-                <option key={s.id} value={`${tk.id}__${s.id}`}>　└ {s.title}</option>
-              ))}
-            </React.Fragment>
-          ))}
-        </select>
+        <TaskPicker tasks={tasks} value={linkedTask} onChange={setLinkedTask} lang={lang} disabled={running} />
       </div>
     </div>
   )
@@ -731,7 +791,9 @@ function TimerView({ logs, onSave, tasks, templates, setTemplates, lang }) {
 
 // ─── Stats View ───────────────────────────────────────────────────────────────
 function StatsView({ logs, onDeleteLog, tasks, lang }) {
-  const [period, setPeriod] = useState('today')
+  const [period, setPeriod]       = useState('today')
+  const [expandedTasks, setExpandedTasks] = useState(new Set())
+  const toggleTaskExpand = id => setExpandedTasks(s => { const ns = new Set(s); ns.has(id) ? ns.delete(id) : ns.add(id); return ns })
   const now = new Date()
   const filtered = logs.filter(l => {
     const d = new Date(l.date)
@@ -831,7 +893,12 @@ function StatsView({ logs, onDeleteLog, tasks, lang }) {
                       <div className="stats-progress-fill" style={{width:`${pct??rate??0}%`, background: tk.color||'var(--accent)'}} />
                     </div>
                   )}
-                  {subs.length > 0 && subs.map(s => {
+                  {subs.length > 0 && (
+                    <button className="stats-expand-btn" onClick={() => toggleTaskExpand(tk.id)}>
+                      {expandedTasks.has(tk.id) ? '▾' : '▸'} {lang==='zh'?`${subs.length}个子任务`:`${subs.length} subtasks`}
+                    </button>
+                  )}
+                  {subs.length > 0 && expandedTasks.has(tk.id) && subs.map(s => {
                     const sTime = tkLogs.filter(l=>l.subTaskId===String(s.id)).reduce((a,b)=>a+b.duration,0)
                     return (
                       <div key={s.id} className="stats-subtask-row">
@@ -877,14 +944,21 @@ const NOTE_COLORS_DARK = ['#1e293b','#3b3200','#052e16','#0c1a2e','#3b0a1f','#1a
 
 function NotesView({ notes, setNotes, lang, dark }) {
   const [search, setSearch]   = useState('')
-  const [editId, setEditId]   = useState(null)   // null = list, 'new' = new, id = editing
-  const [form, setForm]       = useState({ title: '', content: '', color: '#ffffff', pinned: false })
+  const [editId, setEditId]   = useState(null)
+  const blankForm = { title:'', content:'', color: NOTE_COLORS[0], pinned:false, isChecklist:false, checklist:[] }
+  const [form, setForm]       = useState(blankForm)
+  const [newItem, setNewItem] = useState('')
 
-  const openNew  = () => { setForm({ title:'', content:'', color: NOTE_COLORS[0], pinned:false }); setEditId('new') }
-  const openEdit = n  => { setForm({ title:n.title, content:n.content, color:n.color, pinned:n.pinned }); setEditId(n.id) }
+  const openNew  = () => { setForm(blankForm); setEditId('new') }
+  const openEdit = n  => {
+    setForm({ title:n.title, content:n.content||'', color:n.color, pinned:n.pinned,
+      isChecklist:n.isChecklist||false, checklist:n.checklist||[] })
+    setEditId(n.id)
+  }
 
   const saveNote = () => {
-    if (!form.content.trim() && !form.title.trim()) { setEditId(null); return }
+    const hasContent = form.content.trim() || form.title.trim() || (form.checklist||[]).length > 0
+    if (!hasContent) { setEditId(null); return }
     if (editId === 'new') {
       setNotes(ns => [{ ...form, id: Date.now(), checked: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }, ...ns])
     } else {
@@ -893,9 +967,23 @@ function NotesView({ notes, setNotes, lang, dark }) {
     setEditId(null)
   }
 
+  const addItem = () => {
+    if (!newItem.trim()) return
+    setForm(f => ({ ...f, checklist: [...(f.checklist||[]), { id: Date.now(), text: newItem.trim(), done: false }] }))
+    setNewItem('')
+  }
+  const toggleItemDone = id => setForm(f => ({
+    ...f, checklist: f.checklist.map(it => it.id===id ? {...it,done:!it.done} : it)
+  }))
+  const deleteItem = id => setForm(f => ({ ...f, checklist: f.checklist.filter(it => it.id!==id) }))
+
   const deleteNote  = id => { if (confirm(lang==='zh'?'确定删除这条备忘？':'Delete this note?')) setNotes(ns => ns.filter(n => n.id !== id)) }
   const togglePin   = id => setNotes(ns => ns.map(n => n.id===id ? {...n, pinned:!n.pinned} : n))
   const toggleCheck = id => setNotes(ns => ns.map(n => n.id===id ? {...n, checked:!n.checked} : n))
+  const toggleNoteItemDone = (noteId, itemId) => setNotes(ns => ns.map(n => n.id!==noteId ? n : {
+    ...n, checklist: (n.checklist||[]).map(it => it.id===itemId ? {...it,done:!it.done} : it),
+    updatedAt: new Date().toISOString()
+  }))
 
   const filtered = notes.filter(n =>
     !search || n.title.toLowerCase().includes(search.toLowerCase()) || n.content.toLowerCase().includes(search.toLowerCase())
@@ -920,6 +1008,7 @@ function NotesView({ notes, setNotes, lang, dark }) {
     const noteColor = dark
       ? (NOTE_COLORS_DARK[NOTE_COLORS.indexOf(form.color)] ?? '#1e293b')
       : form.color
+    const sortedItems = [...(form.checklist||[])].sort((a,b) => (a.done===b.done ? 0 : a.done ? 1 : -1))
     return (
       <div className="page-container note-editor" style={{ background: noteColor, minHeight: '100%' }}>
         <div className="note-editor-toolbar">
@@ -931,6 +1020,11 @@ function NotesView({ notes, setNotes, lang, dark }) {
                 onClick={() => setForm(f => ({...f, color:c}))} />
             ))}
           </div>
+          <button className={`note-mode-btn ${form.isChecklist?'active':''}`}
+            onClick={() => setForm(f => ({...f, isChecklist:!f.isChecklist}))}
+            title={form.isChecklist ? t(lang,'switchToText') : t(lang,'switchToList')}>
+            {form.isChecklist ? '≡' : '☑'}
+          </button>
           <button className={`note-pin-btn ${form.pinned?'active':''}`}
             onClick={() => setForm(f => ({...f, pinned:!f.pinned}))} title={form.pinned?t(lang,'unpin'):t(lang,'pin')}>
             📌
@@ -938,9 +1032,30 @@ function NotesView({ notes, setNotes, lang, dark }) {
         </div>
         <input className="note-title-input" placeholder={t(lang,'noteTitlePh')}
           value={form.title} onChange={e => setForm(f => ({...f, title:e.target.value}))} />
-        <textarea className="note-content-input" placeholder={t(lang,'noteContentPh')}
-          value={form.content} onChange={e => setForm(f => ({...f, content:e.target.value}))}
-          autoFocus rows={20} />
+        {form.isChecklist ? (
+          <div className="note-checklist-editor">
+            <div className="note-checklist-add">
+              <span className="checklist-circle-add">○</span>
+              <input className="note-checklist-input" placeholder={t(lang,'addListItem')}
+                value={newItem} onChange={e => setNewItem(e.target.value)}
+                onKeyDown={e => e.key==='Enter' && addItem()} autoFocus />
+              {newItem && <button className="note-checklist-add-btn" onClick={addItem}>+</button>}
+            </div>
+            {sortedItems.map(it => (
+              <div key={it.id} className={`note-checklist-item ${it.done?'done':''}`}>
+                <button className={`note-check-btn ${it.done?'checked':''}`} onClick={() => toggleItemDone(it.id)}>
+                  {it.done ? '✓' : '○'}
+                </button>
+                <span className="note-checklist-text">{it.text}</span>
+                <button className="note-checklist-del" onClick={() => deleteItem(it.id)}>✕</button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <textarea className="note-content-input" placeholder={t(lang,'noteContentPh')}
+            value={form.content} onChange={e => setForm(f => ({...f, content:e.target.value}))}
+            autoFocus rows={20} />
+        )}
       </div>
     )
   }
@@ -979,7 +1094,22 @@ function NotesView({ notes, setNotes, lang, dark }) {
                   {n.pinned && !n.checked && <span className="note-pin-badge">📌</span>}
                 </div>
                 {n.title && <div className={`note-card-title ${n.checked?'note-done-text':''}`}>{n.title}</div>}
-                <div className={`note-card-content ${n.checked?'note-done-text':''}`}>{n.content}</div>
+                {n.isChecklist && (n.checklist||[]).length > 0 ? (
+                  <div className="note-card-checklist" onClick={e => e.stopPropagation()}>
+                    {[...(n.checklist||[])].sort((a,b)=>a.done===b.done?0:a.done?1:-1).slice(0,5).map(it => (
+                      <div key={it.id} className={`note-card-check-item ${it.done?'done':''}`}
+                        onClick={() => !n.checked && toggleNoteItemDone(n.id, it.id)}>
+                        <span className={`note-card-check-dot ${it.done?'checked':''}`}>{it.done?'✓':'○'}</span>
+                        <span className="note-card-check-text">{it.text}</span>
+                      </div>
+                    ))}
+                    {(n.checklist||[]).length > 5 && (
+                      <div className="note-card-check-more">+{(n.checklist||[]).length-5} {lang==='zh'?'项':'more'}</div>
+                    )}
+                  </div>
+                ) : (
+                  <div className={`note-card-content ${n.checked?'note-done-text':''}`}>{n.content}</div>
+                )}
                 <div className="note-card-footer">
                   <span className="note-card-date">{fmtDate(n.updatedAt || n.createdAt)}</span>
                   <div className="note-card-actions" onClick={e => e.stopPropagation()}>
