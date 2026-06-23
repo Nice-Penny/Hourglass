@@ -152,6 +152,10 @@ input, select { font-family: inherit }
   background: linear-gradient(135deg, #059669, #10b981);
   box-shadow: 0 8px 32px rgba(16,185,129,.3);
 }
+.pom-tip {
+  color: rgba(255,255,255,.75); font-size: .78rem; line-height: 1.5;
+  margin-top: 8px; text-align: center;
+}
 .timer-display.running {
   animation: pulse-ring 2s ease-in-out infinite;
 }
@@ -429,6 +433,19 @@ input, select { font-family: inherit }
 }
 .icon-action:hover { color: var(--red); background: #fee2e2 }
 
+/* ─── Stats Goals/Habits ────────────────────────────────────────────────────── */
+.stats-goal-list { display: flex; flex-direction: column; gap: 10px }
+.stats-goal-item { background: var(--surface2); border-radius: 10px; padding: 12px 14px }
+.stats-goal-header { display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: .9rem; margin-bottom: 4px }
+.stats-goal-time { font-size: .85rem; color: var(--accent); font-variant-numeric: tabular-nums }
+.stats-goal-meta { display: flex; justify-content: space-between; font-size: .78rem; margin-bottom: 6px }
+.stats-progress-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden }
+.stats-progress-fill { height: 100%; border-radius: 3px; transition: width .5s }
+
+/* link-row in TimerView */
+.link-row { display: flex; gap: 8px; margin-bottom: 8px }
+.link-row select { flex: 1; min-width: 0 }
+
 /* ─── Habits ─────────────────────────────────────────────────────────────────── */
 .habit-summary {
   display: flex; align-items: center; gap: 16px;
@@ -537,6 +554,25 @@ input, select { font-family: inherit }
   text-align: center; padding: 48px 20px;
   color: var(--text-muted); font-size: .95rem;
 }
+
+/* ─── Toast ──────────────────────────────────────────────────────────────────── */
+.toast {
+  position: fixed; top: 80px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 20px; border-radius: 24px;
+  color: white; font-size: .92rem; font-weight: 600;
+  box-shadow: 0 8px 24px rgba(0,0,0,.25);
+  z-index: 100; white-space: nowrap;
+  animation: toastIn .3s ease;
+}
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(-12px) }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0) }
+}
+.toast-icon { font-size: 1.2rem }
+
+/* ─── Page subtitle ──────────────────────────────────────────────────────────── */
+.page-subtitle { font-size: .78rem; color: var(--text-muted); margin-top: 2px }
 
 /* ─── Scrollbar ──────────────────────────────────────────────────────────────── */
 .main-content::-webkit-scrollbar { width: 4px }

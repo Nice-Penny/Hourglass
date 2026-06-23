@@ -89,98 +89,243 @@ function DonutChart({ data, total }) {
   )
 }
 
+// ─── Audio ────────────────────────────────────────────────────────────────────
+// 全局共享 AudioContext，点击开始时解锁，避免手机浏览器挂起
+let _audioCtx = null
+function getAudioCtx() {
+  if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+  if (_audioCtx.state === 'suspended') _audioCtx.resume()
+  return _audioCtx
+}
+// 点开始时主动解锁（用户手势触发）
+function unlockAudio() {
+  try { getAudioCtx() } catch (e) {}
+}
+
+function playBeep(type = 'work') {
+  try {
+    const ctx = getAudioCtx()
+    const freqs = type === 'work'
+      ? [{ f: 523, t: 0, d: 0.15 }, { f: 659, t: 0.18, d: 0.15 }, { f: 784, t: 0.36, d: 0.3 }]
+      : [{ f: 784, t: 0, d: 0.2 }, { f: 523, t: 0.25, d: 0.4 }]
+    freqs.forEach(({ f, t, d }) => {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain); gain.connect(ctx.destination)
+      osc.frequency.value = f; osc.type = 'sine'
+      gain.gain.setValueAtTime(0.35, ctx.currentTime + t)
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + d)
+      osc.start(ctx.currentTime + t); osc.stop(ctx.currentTime + t + d + 0.05)
+    })
+  } catch (e) {}
+}
+
+const POMODORO_LONG_BREAK = 15 * 60
+
 // ─── Timer View ───────────────────────────────────────────────────────────────
-function TimerView({ logs, onSave, goals }) {
-  const [mode, setMode]       = useState('stopwatch')
-  const [running, setRunning] = useState(false)
-  const [elapsed, setElapsed] = useState(0)
-  const [startTs, setStartTs] = useState(null)
+function TimerView({ logs, onSave, goals, habits }) {
+  const [mode, setMode]         = useState('stopwatch')
+  const [running, setRunning]   = useState(false)
+  const [elapsed, setElapsed]   = useState(0)
   const [category, setCategory] = useState('work')
-  const [desc, setDesc]       = useState('')
-  const [linkedGoal, setLinkedGoal] = useState('')
-  const [linkedTask, setLinkedTask] = useState('')
-  const [pomPhase, setPomPhase] = useState('work')
-  const [pomCount, setPomCount] = useState(0)
+  const [desc, setDesc]         = useState('')
+  const [linkedGoal, setLinkedGoal]   = useState('')
+  const [linkedTask, setLinkedTask]   = useState('')
+  const [linkedHabit, setLinkedHabit] = useState('')
+  const [pomPhase, setPomPhase] = useState('work')  // 'work' | 'break' | 'longbreak'
+  const [pomCount, setPomCount] = useState(0)        // 完成的专注次数
   const [pomRemain, setPomRemain] = useState(POMODORO_WORK)
-  const ivRef = useRef(null)
+  const [toast, setToast]       = useState(null)     // { msg, icon, color }
 
-  const pomTarget = pomPhase === 'work' ? POMODORO_WORK : POMODORO_BREAK
+  // 用 ref 存时间戳，切后台不丢失
+  const startTsRef    = useRef(null)  // 计时器/番茄钟阶段开始时间
+  const ivRef         = useRef(null)
+  const runningRef    = useRef(false)
+  const modeRef       = useRef('stopwatch')
+  const pomPhaseRef   = useRef('work')
+  const pomCountRef   = useRef(0)
+  const categoryRef   = useRef('work')
+  const descRef       = useRef('')
+  const linkedGoalRef = useRef('')
+  const linkedTaskRef  = useRef('')
+  const linkedHabitRef = useRef('')
 
-  useEffect(() => {
-    if (!running) { clearInterval(ivRef.current); return }
-    ivRef.current = setInterval(() => {
-      if (mode === 'stopwatch') {
-        setElapsed(p => p + 1)
-      } else {
-        setPomRemain(p => {
-          if (p <= 1) {
-            clearInterval(ivRef.current); setRunning(false)
-            if (pomPhase === 'work') {
-              doSave(POMODORO_WORK, true)
-              setPomPhase('break'); setPomRemain(POMODORO_BREAK); setPomCount(c => c + 1)
-            } else {
-              setPomPhase('work'); setPomRemain(POMODORO_WORK)
-            }
-            return 0
-          }
-          return p - 1
-        })
-      }
-    }, 1000)
-    return () => clearInterval(ivRef.current)
-  }, [running, mode, pomPhase])
+  // 同步 ref
+  useEffect(() => { runningRef.current = running }, [running])
+  useEffect(() => { modeRef.current = mode }, [mode])
+  useEffect(() => { pomPhaseRef.current = pomPhase }, [pomPhase])
+  useEffect(() => { pomCountRef.current = pomCount }, [pomCount])
+  useEffect(() => { categoryRef.current = category }, [category])
+  useEffect(() => { descRef.current = desc }, [desc])
+  useEffect(() => { linkedGoalRef.current = linkedGoal }, [linkedGoal])
+  useEffect(() => { linkedTaskRef.current  = linkedTask  }, [linkedTask])
+  useEffect(() => { linkedHabitRef.current = linkedHabit }, [linkedHabit])
 
-  function doSave(dur, isPomodoro) {
-    const cat = CATEGORIES.find(c => c.id === category)
+  const getPomTarget = (phase) =>
+    phase === 'work' ? POMODORO_WORK : phase === 'longbreak' ? POMODORO_LONG_BREAK : POMODORO_BREAK
+
+  function doSave(dur, label) {
+    const cat = CATEGORIES.find(c => c.id === categoryRef.current)
     onSave({
-      id: Date.now(), category,
+      id: Date.now(), category: categoryRef.current,
       categoryName: cat.name, categoryColor: cat.color, categoryIcon: cat.icon,
-      description: desc || (isPomodoro ? `🍅 番茄钟 #${pomCount + 1}` : cat.name),
+      description: descRef.current || label,
       duration: dur, startTime: Date.now() - dur * 1000, endTime: Date.now(),
-      date: new Date().toISOString(), goalId: linkedGoal, taskId: linkedTask,
+      date: new Date().toISOString(),
+      goalId: linkedGoalRef.current, taskId: linkedTaskRef.current, habitId: linkedHabitRef.current,
     })
   }
 
-  const start = () => { setRunning(true); if (mode === 'stopwatch') setStartTs(Date.now()) }
-  const stop  = () => {
+  // 核心：基于时间戳刷新显示
+  const tick = () => {
+    if (!startTsRef.current) return
+    const now = Date.now()
+    if (modeRef.current === 'stopwatch') {
+      setElapsed(Math.floor((now - startTsRef.current) / 1000))
+    } else {
+      const target = getPomTarget(pomPhaseRef.current)
+      const spent  = Math.floor((now - startTsRef.current) / 1000)
+      const remain = target - spent
+      if (remain <= 0) {
+        phaseEnd()
+      } else {
+        setPomRemain(remain)
+      }
+    }
+  }
+
+  function showToast(msg, icon, color) {
+    setToast({ msg, icon, color })
+    setTimeout(() => setToast(null), 4000)
+  }
+
+  function phaseEnd() {
+    clearInterval(ivRef.current)
+    setRunning(false)
+    const phase = pomPhaseRef.current
+    const count = pomCountRef.current
+    if (phase === 'work') {
+      const newCount = count + 1
+      doSave(POMODORO_WORK, `🍅 番茄钟 #${newCount}`)
+      playBeep('break')
+      const nextPhase = newCount % 4 === 0 ? 'longbreak' : 'break'
+      const nextMsg   = newCount % 4 === 0
+        ? `第 ${newCount} 个完成！🌿 获得15分钟长休息`
+        : `第 ${newCount} 个完成！☕ 休息5分钟吧`
+      showToast(nextMsg, '🍅', '#10b981')
+      setPomCount(newCount)
+      pomCountRef.current = newCount
+      setPomPhase(nextPhase)
+      pomPhaseRef.current = nextPhase
+      setPomRemain(getPomTarget(nextPhase))
+    } else {
+      playBeep('work')
+      showToast('休息结束，开始新的专注！', '💪', '#6366f1')
+      setPomPhase('work')
+      pomPhaseRef.current = 'work'
+      setPomRemain(POMODORO_WORK)
+    }
+    startTsRef.current = null
+  }
+
+  // 启动/停止 interval
+  useEffect(() => {
+    if (running) {
+      ivRef.current = setInterval(tick, 500)
+    } else {
+      clearInterval(ivRef.current)
+    }
+    return () => clearInterval(ivRef.current)
+  }, [running])
+
+  // 切回前台时立即刷新（解决后台暂停问题）
+  useEffect(() => {
+    const onVisible = () => {
+      if (runningRef.current) tick()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [])
+
+  // 请求通知权限
+  useEffect(() => {
+    if (Notification.permission === 'default') Notification.requestPermission()
+  }, [])
+
+  const start = () => {
+    unlockAudio()           // 用户手势时解锁 AudioContext
+    startTsRef.current = Date.now()
+    setRunning(true)
+  }
+  const stop = () => {
     setRunning(false)
     if (mode === 'stopwatch' && elapsed > 0) {
-      doSave(elapsed, false); setElapsed(0); setDesc('')
+      doSave(elapsed, category)
+      setElapsed(0); setDesc('')
+      startTsRef.current = null
     }
   }
   const reset = () => {
-    setRunning(false); setElapsed(0); setDesc('')
-    if (mode === 'pomodoro') { setPomPhase('work'); setPomRemain(POMODORO_WORK) }
+    setRunning(false); setElapsed(0)
+    startTsRef.current = null
+    if (mode === 'pomodoro') { setPomPhase('work'); pomPhaseRef.current = 'work'; setPomRemain(POMODORO_WORK); setPomCount(0); pomCountRef.current = 0 }
   }
-  const switchMode = m => { reset(); setMode(m) }
+  const switchMode = m => { reset(); setMode(m); modeRef.current = m }
 
   const goal = goals.find(g => g.id === linkedGoal)
-  const pomPct = mode === 'pomodoro' ? (1 - pomRemain / pomTarget) : 0
+  const pomTarget = getPomTarget(pomPhase)
+  const pomPct = 1 - pomRemain / pomTarget
   const C52 = 2 * Math.PI * 52
+
+  const pomPhaseLabel = pomPhase === 'work' ? '🍅 专注时间' : pomPhase === 'longbreak' ? '🌿 长休息' : '☕ 休息时间'
+  const pomPhaseColor = pomPhase === 'work' ? '' : 'pom-break'
+
+  // 今日番茄数
+  const todayPom = logs.filter(l =>
+    l.description?.includes('🍅') &&
+    new Date(l.date).toDateString() === new Date().toDateString()
+  ).length
 
   return (
     <div className="page-container">
+      {/* Toast 提醒 */}
+      {toast && (
+        <div className="toast" style={{ background: toast.color }}>
+          <span className="toast-icon">{toast.icon}</span>
+          <span>{toast.msg}</span>
+        </div>
+      )}
+
       <div className="mode-toggle">
         <button className={mode==='stopwatch'?'active':''} onClick={()=>switchMode('stopwatch')}>⏱ 计时器</button>
         <button className={mode==='pomodoro'?'active':''}  onClick={()=>switchMode('pomodoro')}>🍅 番茄钟</button>
       </div>
 
-      <div className={`timer-display ${running?'running':''} ${mode==='pomodoro'?`pom-${pomPhase}`:''}`}>
+      <div className={`timer-display ${running?'running':''} ${mode==='pomodoro'?pomPhaseColor:''}`}>
         {mode === 'pomodoro' ? (
           <>
-            <div className="pom-label">{pomPhase==='work'?'🍅 专注时间':'☕ 休息时间'}</div>
+            <div className="pom-label">{pomPhaseLabel}</div>
             <svg viewBox="0 0 140 140" width="180" height="180">
               <circle cx="70" cy="70" r="52" fill="none" stroke="rgba(255,255,255,.25)" strokeWidth="10"/>
               <circle cx="70" cy="70" r="52" fill="none" stroke="white" strokeWidth="10"
                 strokeDasharray={C52} strokeDashoffset={C52*(1-pomPct)}
                 transform="rotate(-90 70 70)" strokeLinecap="round"/>
-              <text x="70" y="63" textAnchor="middle" fill="white" fontSize="24" fontWeight="700" fontFamily="monospace">
+              <text x="70" y="60" textAnchor="middle" fill="white" fontSize="24" fontWeight="700" fontFamily="monospace">
                 {fmt(pomRemain)}
               </text>
-              <text x="70" y="82" textAnchor="middle" fill="rgba(255,255,255,.8)" fontSize="12">
-                {pomCount > 0 ? `已完成 ${pomCount} 🍅` : '专注加油！'}
+              <text x="70" y="78" textAnchor="middle" fill="rgba(255,255,255,.85)" fontSize="11">
+                {'🍅'.repeat(Math.min(pomCount, 8))}{pomCount > 8 ? `+${pomCount-8}` : ''}
               </text>
+              {todayPom > 0 && (
+                <text x="70" y="95" textAnchor="middle" fill="rgba(255,255,255,.65)" fontSize="10">
+                  今日 {todayPom} 个
+                </text>
+              )}
             </svg>
+            {/* 番茄钟说明 */}
+            {!running && pomPhase === 'work' && pomCount === 0 && (
+              <div className="pom-tip">专注25分→休息5分，每4个获得15分长休息<br/>完成后自动记录到统计</div>
+            )}
           </>
         ) : (
           <div className="sw-time">{fmt(elapsed)}</div>
@@ -192,7 +337,7 @@ function TimerView({ logs, onSave, goals }) {
             <>
               {mode === 'stopwatch'
                 ? <button className="btn btn-stop" onClick={stop}>⏹ 停止保存</button>
-                : <button className="btn btn-stop" onClick={()=>setRunning(false)}>⏸ 暂停</button>
+                : <button className="btn btn-stop" onClick={()=>{ setRunning(false) }}>⏸ 暂停</button>
               }
               <button className="btn btn-reset" onClick={reset}>↻ 重置</button>
             </>
@@ -221,38 +366,31 @@ function TimerView({ logs, onSave, goals }) {
           value={desc} onChange={e=>setDesc(e.target.value)} disabled={running} />
       </div>
 
-      {goals.length > 0 && (
-        <div className="section">
-          <div className="section-title">关联目标（可选）</div>
+      <div className="section">
+        <div className="section-title">关联目标或习惯（可选）</div>
+        <div className="link-row">
           <select className="select-input" value={linkedGoal}
-            onChange={e=>{ setLinkedGoal(e.target.value); setLinkedTask('') }} disabled={running}>
-            <option value="">— 不关联 —</option>
+            onChange={e=>{ setLinkedGoal(e.target.value); setLinkedTask(''); setLinkedHabit('') }}
+            disabled={running || !!linkedHabit}>
+            <option value="">🎯 目标...</option>
             {goals.map(g => <option key={g.id} value={g.id}>{g.icon} {g.title}</option>)}
           </select>
-          {goal?.tasks?.filter(t=>!t.done).length > 0 && (
-            <select className="select-input" style={{marginTop:8}} value={linkedTask}
-              onChange={e=>setLinkedTask(e.target.value)} disabled={running}>
-              <option value="">— 选择子任务 —</option>
-              {goal.tasks.filter(t=>!t.done).map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
-            </select>
-          )}
+          <select className="select-input" value={linkedHabit}
+            onChange={e=>{ setLinkedHabit(e.target.value); setLinkedGoal(''); setLinkedTask('') }}
+            disabled={running || !!linkedGoal}>
+            <option value="">✅ 习惯...</option>
+            {habits.map(h => <option key={h.id} value={h.id}>{h.icon} {h.title}</option>)}
+          </select>
         </div>
-      )}
+        {goal?.tasks?.filter(t=>!t.done).length > 0 && (
+          <select className="select-input" style={{marginTop:8}} value={linkedTask}
+            onChange={e=>setLinkedTask(e.target.value)} disabled={running}>
+            <option value="">— 选择子任务 —</option>
+            {goal.tasks.filter(t=>!t.done).map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
+          </select>
+        )}
+      </div>
 
-      {logs.slice(0,3).length > 0 && (
-        <div className="section">
-          <div className="section-title">最近记录</div>
-          <div className="recent-logs">
-            {logs.slice(0,3).map(l => (
-              <div key={l.id} className="recent-log-item" style={{borderLeftColor: l.categoryColor}}>
-                <span>{l.categoryIcon}</span>
-                <span className="rl-desc">{l.description}</span>
-                <span className="rl-time">{fmt(l.duration)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   )
 }
@@ -299,7 +437,10 @@ function GoalsView({ goals, setGoals, logs }) {
   return (
     <div className="page-container">
       <div className="page-header">
-        <h2>我的目标</h2>
+        <div>
+          <h2>我的目标</h2>
+          <div className="page-subtitle">设定长期目标，拆解任务，追踪进度</div>
+        </div>
         <button className="btn-primary" onClick={() => { setEditId(null); setForm({ title:'', description:'', deadline:'', icon:'🎯', color:'#3b82f6' }); setShowForm(true) }}>+ 新建</button>
       </div>
 
@@ -448,7 +589,7 @@ function GoalsView({ goals, setGoals, logs }) {
 }
 
 // ─── Stats View ───────────────────────────────────────────────────────────────
-function StatsView({ logs, onDeleteLog }) {
+function StatsView({ logs, onDeleteLog, goals = [], habits = [] }) {
   const [period, setPeriod] = useState('today')
 
   const now = new Date()
@@ -522,6 +663,67 @@ function StatsView({ logs, onDeleteLog }) {
         </div>
       )}
 
+      {goals.length > 0 && (
+        <div className="chart-section">
+          <div className="section-title">🎯 目标进度</div>
+          <div className="stats-goal-list">
+            {goals.filter(g=>!g.archived).map(g => {
+              const goalTime = filtered.filter(l=>l.goalId===g.id).reduce((a,b)=>a+b.duration,0)
+              const tasks = g.tasks || []
+              const done = tasks.filter(t=>t.done).length
+              const pct = tasks.length > 0 ? Math.round(done/tasks.length*100) : 0
+              return (
+                <div key={g.id} className="stats-goal-item">
+                  <div className="stats-goal-header">
+                    <span>{g.icon} {g.title}</span>
+                    <span className="stats-goal-time">{fmtH(goalTime)}</span>
+                  </div>
+                  <div className="stats-goal-meta">
+                    <span className="muted">{done}/{tasks.length} 任务完成</span>
+                    <span className="muted">{pct}%</span>
+                  </div>
+                  <div className="stats-progress-bar">
+                    <div className="stats-progress-fill" style={{width:`${pct}%`, background: g.color || 'var(--accent)'}} />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {habits.length > 0 && (
+        <div className="chart-section">
+          <div className="section-title">✅ 习惯完成情况</div>
+          <div className="stats-goal-list">
+            {habits.map(h => {
+              const today = new Date().toDateString()
+              const checks = h.checks || []
+              const daysInPeriod = period==='today' ? 1 : period==='week' ? 7 : 30
+              const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - daysInPeriod + 1)
+              const periodChecks = checks.filter(d => new Date(d) >= cutoff).length
+              const rate = Math.round(periodChecks / daysInPeriod * 100)
+              const habitTime = filtered.filter(l=>l.habitId===h.id).reduce((a,b)=>a+b.duration,0)
+              return (
+                <div key={h.id} className="stats-goal-item">
+                  <div className="stats-goal-header">
+                    <span>{h.icon} {h.title}</span>
+                    <span className="stats-goal-time">{habitTime > 0 ? fmtH(habitTime) : `🔥 ${h.streak||0}天`}</span>
+                  </div>
+                  <div className="stats-goal-meta">
+                    <span className="muted">{periodChecks}/{daysInPeriod} 天完成</span>
+                    <span className="muted">{rate}%</span>
+                  </div>
+                  <div className="stats-progress-bar">
+                    <div className="stats-progress-fill" style={{width:`${rate}%`, background: h.color || '#10b981'}} />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="chart-section">
         <div className="section-title">活动记录</div>
         {filtered.length === 0 ? (
@@ -590,7 +792,10 @@ function HabitsView({ habits, setHabits }) {
   return (
     <div className="page-container">
       <div className="page-header">
-        <h2>习惯打卡</h2>
+        <div>
+          <h2>习惯打卡</h2>
+          <div className="page-subtitle">每日重复的行为，靠坚持积累连续天数</div>
+        </div>
         <button className="btn-primary" onClick={()=>setShowForm(true)}>+ 添加</button>
       </div>
 
@@ -852,9 +1057,9 @@ export default function App() {
       </header>
 
       <main className="main-content">
-        {tab==='timer'  && <TimerView  logs={logs}   onSave={onSave}     goals={goals} />}
+        {tab==='timer'  && <TimerView  logs={logs}   onSave={onSave}     goals={goals} habits={habits} />}
         {tab==='goals'  && <GoalsView  goals={goals} setGoals={setGoals} logs={logs}   />}
-        {tab==='stats'  && <StatsView  logs={logs}   onDeleteLog={onDeleteLog}         />}
+        {tab==='stats'  && <StatsView  logs={logs}   onDeleteLog={onDeleteLog} goals={goals} habits={habits} />}
         {tab==='habits' && <HabitsView habits={habits} setHabits={setHabits}           />}
       </main>
 
