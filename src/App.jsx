@@ -46,6 +46,9 @@ const T = {
     taskProgress:'任务进度', completionRate:'完成率',
     noLogs:'该时间段暂无记录',
     today:'今天', thisWeekTab:'本周', thisMonth:'本月',
+    notes:'备忘录', newNote:'+ 新建', searchNotes:'搜索备忘录...', noNotes:'还没有备忘录，记下你的第一个想法吧！',
+    noteTitlePh:'标题（可选）', noteContentPh:'记下你的思路、点子或想法...', pinned:'已置顶',
+    pin:'置顶', unpin:'取消置顶',
   },
   en: {
     timer:'Timer', tasks:'Tasks', stats:'Stats',
@@ -70,6 +73,9 @@ const T = {
     taskProgress:'Task Progress', completionRate:'Completion Rate',
     noLogs:'No records in this period',
     today:'Today', thisWeekTab:'This Week', thisMonth:'This Month',
+    notes:'Notes', newNote:'+ New', searchNotes:'Search notes...', noNotes:'No notes yet. Write down your first idea!',
+    noteTitlePh:'Title (optional)', noteContentPh:'Write your thoughts, ideas or plans...', pinned:'Pinned',
+    pin:'Pin', unpin:'Unpin',
   }
 }
 const t = (lang, key) => T[lang]?.[key] ?? key
@@ -883,6 +889,124 @@ function StatsView({ logs, onDeleteLog, tasks, lang }) {
   )
 }
 
+// ─── Notes View ──────────────────────────────────────────────────────────────
+const NOTE_COLORS = ['#ffffff','#fef9c3','#dcfce7','#dbeafe','#fce7f3','#ede9fe','#ffedd5','#f1f5f9']
+const NOTE_COLORS_DARK = ['#1e293b','#3b3200','#052e16','#0c1a2e','#3b0a1f','#1a0f3b','#3b1500','#1e293b']
+
+function NotesView({ notes, setNotes, lang, dark }) {
+  const [search, setSearch]   = useState('')
+  const [editId, setEditId]   = useState(null)   // null = list, 'new' = new, id = editing
+  const [form, setForm]       = useState({ title: '', content: '', color: '#ffffff', pinned: false })
+
+  const openNew  = () => { setForm({ title:'', content:'', color: NOTE_COLORS[0], pinned:false }); setEditId('new') }
+  const openEdit = n  => { setForm({ title:n.title, content:n.content, color:n.color, pinned:n.pinned }); setEditId(n.id) }
+
+  const saveNote = () => {
+    if (!form.content.trim() && !form.title.trim()) { setEditId(null); return }
+    if (editId === 'new') {
+      setNotes(ns => [{ ...form, id: Date.now(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }, ...ns])
+    } else {
+      setNotes(ns => ns.map(n => n.id === editId ? { ...n, ...form, updatedAt: new Date().toISOString() } : n))
+    }
+    setEditId(null)
+  }
+
+  const deleteNote = id => { if (confirm(lang==='zh'?'确定删除这条备忘？':'Delete this note?')) setNotes(ns => ns.filter(n => n.id !== id)) }
+  const togglePin  = id => setNotes(ns => ns.map(n => n.id===id ? {...n, pinned:!n.pinned} : n))
+
+  const filtered = notes.filter(n =>
+    !search || n.title.toLowerCase().includes(search.toLowerCase()) || n.content.toLowerCase().includes(search.toLowerCase())
+  )
+  const pinned   = filtered.filter(n => n.pinned)
+  const unpinned = filtered.filter(n => !n.pinned)
+  const display  = [...pinned, ...unpinned]
+
+  const fmtDate = iso => {
+    const d = new Date(iso)
+    const now = new Date()
+    const diff = Math.floor((now - d) / 60000)
+    if (diff < 1)  return lang==='zh' ? '刚刚' : 'just now'
+    if (diff < 60) return lang==='zh' ? `${diff}分钟前` : `${diff}m ago`
+    if (diff < 1440) return lang==='zh' ? `${Math.floor(diff/60)}小时前` : `${Math.floor(diff/60)}h ago`
+    return d.toLocaleDateString(lang==='zh'?'zh-CN':'en-US', { month:'short', day:'numeric' })
+  }
+
+  // ── Edit / New screen ──
+  if (editId !== null) {
+    const noteColor = dark
+      ? (NOTE_COLORS_DARK[NOTE_COLORS.indexOf(form.color)] ?? '#1e293b')
+      : form.color
+    return (
+      <div className="page-container note-editor" style={{ background: noteColor, minHeight: '100%' }}>
+        <div className="note-editor-toolbar">
+          <button className="note-back-btn" onClick={saveNote}>← {lang==='zh'?'完成':'Done'}</button>
+          <div className="note-color-row">
+            {NOTE_COLORS.map((c,i) => (
+              <button key={c} className={`note-color-dot ${form.color===c?'active':''}`}
+                style={{ background: dark ? NOTE_COLORS_DARK[i] : c }}
+                onClick={() => setForm(f => ({...f, color:c}))} />
+            ))}
+          </div>
+          <button className={`note-pin-btn ${form.pinned?'active':''}`}
+            onClick={() => setForm(f => ({...f, pinned:!f.pinned}))} title={form.pinned?t(lang,'unpin'):t(lang,'pin')}>
+            📌
+          </button>
+        </div>
+        <input className="note-title-input" placeholder={t(lang,'noteTitlePh')}
+          value={form.title} onChange={e => setForm(f => ({...f, title:e.target.value}))} />
+        <textarea className="note-content-input" placeholder={t(lang,'noteContentPh')}
+          value={form.content} onChange={e => setForm(f => ({...f, content:e.target.value}))}
+          autoFocus rows={20} />
+      </div>
+    )
+  }
+
+  // ── List screen ──
+  return (
+    <div className="page-container">
+      <div className="page-header">
+        <div><h2>{t(lang,'notes')}</h2><div className="page-subtitle">{lang==='zh'?'思路、点子、灵感随手记':'Capture thoughts, ideas and inspiration'}</div></div>
+        <button className="btn-primary" onClick={openNew}>{t(lang,'newNote')}</button>
+      </div>
+
+      <div className="note-search-wrap">
+        <span className="note-search-icon">🔍</span>
+        <input className="note-search-input" placeholder={t(lang,'searchNotes')}
+          value={search} onChange={e => setSearch(e.target.value)} />
+        {search && <button className="note-search-clear" onClick={() => setSearch('')}>✕</button>}
+      </div>
+
+      {display.length === 0 ? (
+        <div className="empty-state">
+          <div style={{fontSize:'3rem',marginBottom:12}}>💡</div>
+          <p>{search ? (lang==='zh'?'没有匹配的备忘录':'No matching notes') : t(lang,'noNotes')}</p>
+        </div>
+      ) : (
+        <div className="notes-grid">
+          {display.map(n => {
+            const ci = NOTE_COLORS.indexOf(n.color)
+            const bg = dark ? (NOTE_COLORS_DARK[ci] ?? '#1e293b') : n.color
+            return (
+              <div key={n.id} className="note-card" style={{background: bg}} onClick={() => openEdit(n)}>
+                {n.pinned && <div className="note-pin-badge">📌</div>}
+                {n.title && <div className="note-card-title">{n.title}</div>}
+                <div className="note-card-content">{n.content}</div>
+                <div className="note-card-footer">
+                  <span className="note-card-date">{fmtDate(n.updatedAt || n.createdAt)}</span>
+                  <div className="note-card-actions" onClick={e => e.stopPropagation()}>
+                    <button className="icon-action" onClick={() => togglePin(n.id)} title={n.pinned?t(lang,'unpin'):t(lang,'pin')}>📌</button>
+                    <button className="icon-action" onClick={() => deleteNote(n.id)}>🗑</button>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Login Screen ─────────────────────────────────────────────────────────────
 function LoginScreen({ onAuth }) {
   const [mode, setMode]   = useState('login')
@@ -937,12 +1061,14 @@ export default function App() {
   const [cloudLogs,      setCloudLogs]      = useState([])
   const [cloudTasks,     setCloudTasks]     = useState([])
   const [cloudTemplates, setCloudTemplates] = useState([])
+  const [cloudNotes,     setCloudNotes]     = useState([])
   const [cloudLang,      setCloudLang]      = useState('zh')
 
   const [localDark,      setLocalDark]      = useLS('darkMode',  false)
   const [localLogs,      setLocalLogs]      = useLS('timeLogs',  [])
   const [localTasks,     setLocalTasks]     = useLS('tasks2',    [])
   const [localTemplates, setLocalTemplates] = useLS('templates', [])
+  const [localNotes,     setLocalNotes]     = useLS('notes',     [])
   const [localLang,      setLocalLang]      = useLS('lang',      'zh')
 
   const isCloud    = FIREBASE_CONFIGURED && !!user
@@ -950,11 +1076,13 @@ export default function App() {
   const logs       = isCloud ? cloudLogs      : localLogs
   const tasks      = isCloud ? cloudTasks     : localTasks
   const templates  = isCloud ? cloudTemplates : localTemplates
+  const notes      = isCloud ? cloudNotes     : localNotes
   const lang       = isCloud ? cloudLang      : localLang
   const setDark      = isCloud ? setCloudDark      : setLocalDark
   const setLogs      = isCloud ? setCloudLogs      : setLocalLogs
   const setTasks     = isCloud ? setCloudTasks     : setLocalTasks
   const setTemplates = isCloud ? setCloudTemplates : setLocalTemplates
+  const setNotes     = isCloud ? setCloudNotes     : setLocalNotes
   const setLang      = isCloud ? setCloudLang      : setLocalLang
 
   const [pwaPrompt,  setPwaPrompt]  = useState(null)
@@ -977,6 +1105,7 @@ export default function App() {
       if (data.timeLogs   !== undefined) setLogs(data.timeLogs)
       if (data.tasks2     !== undefined) setCloudTasks(data.tasks2)
       if (data.templates  !== undefined) setCloudTemplates(data.templates)
+      if (data.notes      !== undefined) setCloudNotes(data.notes)
       if (data.darkMode   !== undefined) setDark(data.darkMode)
       if (data.lang       !== undefined) setCloudLang(data.lang)
     })
@@ -986,8 +1115,8 @@ export default function App() {
   useEffect(() => {
     if (!user) return
     if (!initialized.current) { initialized.current = true; return }
-    saveUserData(user.uid, { timeLogs: logs, tasks2: tasks, templates, darkMode: dark, lang })
-  }, [logs, tasks, templates, dark, lang])
+    saveUserData(user.uid, { timeLogs: logs, tasks2: tasks, templates, notes, darkMode: dark, lang })
+  }, [logs, tasks, templates, notes, dark, lang])
 
   const handleAuth  = async (mode, email, pw) => { if (mode==='login') await login(email,pw); else await register(email,pw) }
   const onSave      = log => setLogs(p => [log, ...p])
@@ -1032,11 +1161,12 @@ export default function App() {
       <main className="main-content">
         {tab==='timer' && <TimerView logs={logs} onSave={onSave} tasks={tasks} templates={templates} setTemplates={setTemplates} lang={lang} />}
         {tab==='tasks' && <TasksView tasks={tasks} setTasks={setTasks} logs={logs} lang={lang} />}
+        {tab==='notes' && <NotesView notes={notes} setNotes={setNotes} lang={lang} dark={dark} />}
         {tab==='stats' && <StatsView logs={logs} onDeleteLog={onDeleteLog} tasks={tasks} lang={lang} />}
       </main>
 
       <nav className="bottom-nav">
-        {[['timer','⏱',t(lang,'timer')],['tasks','📋',t(lang,'tasks')],['stats','📊',t(lang,'stats')]].map(([k,ic,lb])=>(
+        {[['timer','⏱',t(lang,'timer')],['tasks','📋',t(lang,'tasks')],['notes','💡',t(lang,'notes')],['stats','📊',t(lang,'stats')]].map(([k,ic,lb])=>(
           <button key={k} className={`nav-btn ${tab===k?'active':''}`} onClick={()=>setTab(k)}>
             <span className="nav-ic">{ic}</span><span className="nav-lb">{lb}</span>
           </button>
