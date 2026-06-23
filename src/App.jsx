@@ -281,8 +281,16 @@ function TaskForm({ initial, onSave, onClose, lang }) {
         {/* Deadline — at the bottom for all repeat types */}
         <div className="form-group">
           <label>{t(lang,'deadline')}</label>
-          <input className="text-input" type="date" value={form.deadline}
-            onChange={e => set({ deadline: e.target.value })} />
+          <div style={{display:'flex',gap:8,alignItems:'center'}}>
+            <input className="text-input" type="date" value={form.deadline}
+              onChange={e => set({ deadline: e.target.value })} style={{flex:1}} />
+            {form.deadline && (
+              <button className="btn-secondary small" onClick={() => set({deadline:''})}
+                style={{flexShrink:0,whiteSpace:'nowrap'}}>
+                {lang==='zh'?'清除':'Clear'}
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="modal-actions">
@@ -335,7 +343,6 @@ function TaskCard({ tk, today, logs, lang, last7, weekLabels, onToggle, onToggle
         )}
         <div className="task-card-info" onClick={() => setExpanded(e=>!e)} style={{cursor:'pointer',flex:1,minWidth:0}}>
           <div className="task-card-title">
-            <span className="task-card-icon">{tk.icon}</span>
             <span className={doneToday ? 'task-done-text' : ''}>{tk.title}</span>
           </div>
           <div className="task-card-badges">
@@ -945,14 +952,14 @@ const NOTE_COLORS_DARK = ['#1e293b','#3b3200','#052e16','#0c1a2e','#3b0a1f','#1a
 function NotesView({ notes, setNotes, lang, dark }) {
   const [search, setSearch]   = useState('')
   const [editId, setEditId]   = useState(null)
-  const blankForm = { title:'', content:'', color: NOTE_COLORS[0], pinned:false, isChecklist:false, checklist:[] }
+  const blankForm = { title:'', content:'', color: NOTE_COLORS[0], pinned:false, checklist:[] }
   const [form, setForm]       = useState(blankForm)
   const [newItem, setNewItem] = useState('')
+  const [addType, setAddType] = useState('check') // 'check' | 'numbered'
 
   const openNew  = () => { setForm(blankForm); setEditId('new') }
   const openEdit = n  => {
-    setForm({ title:n.title, content:n.content||'', color:n.color, pinned:n.pinned,
-      isChecklist:n.isChecklist||false, checklist:n.checklist||[] })
+    setForm({ title:n.title, content:n.content||'', color:n.color, pinned:n.pinned, checklist:n.checklist||[] })
     setEditId(n.id)
   }
 
@@ -969,7 +976,7 @@ function NotesView({ notes, setNotes, lang, dark }) {
 
   const addItem = () => {
     if (!newItem.trim()) return
-    setForm(f => ({ ...f, checklist: [...(f.checklist||[]), { id: Date.now(), text: newItem.trim(), done: false }] }))
+    setForm(f => ({ ...f, checklist: [...(f.checklist||[]), { id: Date.now(), text: newItem.trim(), done: false, type: addType }] }))
     setNewItem('')
   }
   const toggleItemDone = id => setForm(f => ({
@@ -984,6 +991,9 @@ function NotesView({ notes, setNotes, lang, dark }) {
     ...n, checklist: (n.checklist||[]).map(it => it.id===itemId ? {...it,done:!it.done} : it),
     updatedAt: new Date().toISOString()
   }))
+
+  // compute display number for a numbered item (its position among numbered items)
+  const getNum = (items, id) => items.filter((x,i) => x.type==='numbered' && i <= items.findIndex(x=>x.id===id)).length
 
   const filtered = notes.filter(n =>
     !search || n.title.toLowerCase().includes(search.toLowerCase()) || n.content.toLowerCase().includes(search.toLowerCase())
@@ -1008,7 +1018,7 @@ function NotesView({ notes, setNotes, lang, dark }) {
     const noteColor = dark
       ? (NOTE_COLORS_DARK[NOTE_COLORS.indexOf(form.color)] ?? '#1e293b')
       : form.color
-    const sortedItems = [...(form.checklist||[])].sort((a,b) => (a.done===b.done ? 0 : a.done ? 1 : -1))
+    const items = form.checklist || []
     return (
       <div className="page-container note-editor" style={{ background: noteColor, minHeight: '100%' }}>
         <div className="note-editor-toolbar">
@@ -1020,42 +1030,52 @@ function NotesView({ notes, setNotes, lang, dark }) {
                 onClick={() => setForm(f => ({...f, color:c}))} />
             ))}
           </div>
-          <button className={`note-mode-btn ${form.isChecklist?'active':''}`}
-            onClick={() => setForm(f => ({...f, isChecklist:!f.isChecklist}))}
-            title={form.isChecklist ? t(lang,'switchToText') : t(lang,'switchToList')}>
-            {form.isChecklist ? '≡' : '☑'}
-          </button>
           <button className={`note-pin-btn ${form.pinned?'active':''}`}
             onClick={() => setForm(f => ({...f, pinned:!f.pinned}))} title={form.pinned?t(lang,'unpin'):t(lang,'pin')}>
             📌
           </button>
         </div>
+
         <input className="note-title-input" placeholder={t(lang,'noteTitlePh')}
           value={form.title} onChange={e => setForm(f => ({...f, title:e.target.value}))} />
-        {form.isChecklist ? (
-          <div className="note-checklist-editor">
-            <div className="note-checklist-add">
-              <span className="checklist-circle-add">○</span>
-              <input className="note-checklist-input" placeholder={t(lang,'addListItem')}
-                value={newItem} onChange={e => setNewItem(e.target.value)}
-                onKeyDown={e => e.key==='Enter' && addItem()} autoFocus />
-              {newItem && <button className="note-checklist-add-btn" onClick={addItem}>+</button>}
-            </div>
-            {sortedItems.map(it => (
-              <div key={it.id} className={`note-checklist-item ${it.done?'done':''}`}>
-                <button className={`note-check-btn ${it.done?'checked':''}`} onClick={() => toggleItemDone(it.id)}>
-                  {it.done ? '✓' : '○'}
-                </button>
-                <span className="note-checklist-text">{it.text}</span>
-                <button className="note-checklist-del" onClick={() => deleteItem(it.id)}>✕</button>
+
+        {/* Free text area */}
+        <textarea className="note-content-input" placeholder={t(lang,'noteContentPh')}
+          value={form.content} onChange={e => setForm(f => ({...f, content:e.target.value}))}
+          rows={4} style={{minHeight:80}} />
+
+        {/* List items section */}
+        <div className="note-items-section">
+          {items.map((it, idx) => {
+            const num = it.type==='numbered' ? getNum(items, it.id) : null
+            return (
+              <div key={it.id} className={`note-editor-item ${it.done?'done':''}`}>
+                <span className={`note-item-dot ${it.done?'checked':''} ${it.type==='numbered'?'numbered':''}`}
+                  onClick={() => toggleItemDone(it.id)}>
+                  {it.type==='numbered' ? (it.done ? '' : num) : ''}
+                </span>
+                <span className="note-item-text">{it.text}</span>
+                <button className="note-item-del" onClick={() => deleteItem(it.id)}>✕</button>
               </div>
-            ))}
+            )
+          })}
+
+          {/* Add new item row */}
+          <div className="note-item-add-row">
+            <button className={`note-addtype-btn ${addType==='check'?'active':''}`}
+              onClick={() => setAddType('check')} title={lang==='zh'?'清单':'Checklist'}>
+              <span className="note-addtype-circle" />
+            </button>
+            <button className={`note-addtype-btn ${addType==='numbered'?'active':''}`}
+              onClick={() => setAddType('numbered')} title={lang==='zh'?'编号':'Numbered'}>
+              <span className="note-addtype-num">1.</span>
+            </button>
+            <input className="note-item-input" placeholder={t(lang,'addListItem')}
+              value={newItem} onChange={e => setNewItem(e.target.value)}
+              onKeyDown={e => e.key==='Enter' && addItem()} />
+            {newItem && <button className="note-item-add-btn" onClick={addItem}>+</button>}
           </div>
-        ) : (
-          <textarea className="note-content-input" placeholder={t(lang,'noteContentPh')}
-            value={form.content} onChange={e => setForm(f => ({...f, content:e.target.value}))}
-            autoFocus rows={20} />
-        )}
+        </div>
       </div>
     )
   }
@@ -1094,21 +1114,28 @@ function NotesView({ notes, setNotes, lang, dark }) {
                   {n.pinned && !n.checked && <span className="note-pin-badge">📌</span>}
                 </div>
                 {n.title && <div className={`note-card-title ${n.checked?'note-done-text':''}`}>{n.title}</div>}
-                {n.isChecklist && (n.checklist||[]).length > 0 ? (
-                  <div className="note-card-checklist" onClick={e => e.stopPropagation()}>
-                    {[...(n.checklist||[])].sort((a,b)=>a.done===b.done?0:a.done?1:-1).slice(0,5).map(it => (
-                      <div key={it.id} className={`note-card-check-item ${it.done?'done':''}`}
-                        onClick={() => !n.checked && toggleNoteItemDone(n.id, it.id)}>
-                        <span className={`note-card-check-dot ${it.done?'checked':''}`}>{it.done?'✓':'○'}</span>
-                        <span className="note-card-check-text">{it.text}</span>
-                      </div>
-                    ))}
+                {n.content ? <div className={`note-card-content ${n.checked?'note-done-text':''}`}>{n.content}</div> : null}
+                {(n.checklist||[]).length > 0 && (
+                  <div className="note-card-items" onClick={e => e.stopPropagation()}>
+                    {(() => {
+                      const sorted = [...(n.checklist||[])].sort((a,b)=>a.done===b.done?0:a.done?1:-1)
+                      return sorted.slice(0,5).map((it, idx) => {
+                        const num = it.type==='numbered' ? sorted.slice(0,idx).filter(x=>x.type==='numbered').length+1 : null
+                        return (
+                          <div key={it.id} className={`note-card-item ${it.done?'done':''}`}
+                            onClick={() => !n.checked && toggleNoteItemDone(n.id, it.id)}>
+                            <span className={`note-card-dot ${it.done?'checked':''} ${it.type==='numbered'?'numbered':''}`}>
+                              {it.type==='numbered' && !it.done ? num : ''}
+                            </span>
+                            <span className="note-card-item-text">{it.text}</span>
+                          </div>
+                        )
+                      })
+                    })()}
                     {(n.checklist||[]).length > 5 && (
-                      <div className="note-card-check-more">+{(n.checklist||[]).length-5} {lang==='zh'?'项':'more'}</div>
+                      <div className="note-card-more">+{(n.checklist||[]).length-5} {lang==='zh'?'项':'more'}</div>
                     )}
                   </div>
-                ) : (
-                  <div className={`note-card-content ${n.checked?'note-done-text':''}`}>{n.content}</div>
                 )}
                 <div className="note-card-footer">
                   <span className="note-card-date">{fmtDate(n.updatedAt || n.createdAt)}</span>

@@ -986,61 +986,90 @@ input, select { font-family: inherit }
 .task-picker-sub { padding-left: 28px; color: var(--text-muted); font-size: .86rem }
 .task-picker-sub.active { color: var(--accent) }
 
-/* Note checklist in editor */
-.note-mode-btn {
-  background: none; border: 1.5px solid var(--text-muted); border-radius: 6px;
-  color: var(--text-muted); font-size: .9rem; width: 26px; height: 26px;
-  cursor: pointer; display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0; transition: all .2s;
-}
-.note-mode-btn.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft) }
-.note-mode-btn:hover { border-color: var(--accent); color: var(--accent) }
+/* Note items section (editor) */
+.note-items-section { padding: 4px 16px 32px; display: flex; flex-direction: column; gap: 2px }
 
-.note-checklist-editor { padding: 8px 16px 32px; display: flex; flex-direction: column; gap: 4px }
-.note-checklist-add {
-  display: flex; align-items: center; gap: 10px;
-  padding: 6px 0; border-bottom: 1px dashed rgba(0,0,0,.1);
-  margin-bottom: 6px;
-}
-.dark .note-checklist-add { border-bottom-color: rgba(255,255,255,.1) }
-.checklist-circle-add { color: var(--text-muted); font-size: 1rem; flex-shrink: 0 }
-.note-checklist-input {
-  flex: 1; border: none; background: transparent; color: var(--text);
-  font-size: .95rem; outline: none; font-family: inherit;
-}
-.note-checklist-add-btn {
-  background: var(--accent); color: #fff; border: none; border-radius: 50%;
-  width: 22px; height: 22px; font-size: .85rem; cursor: pointer; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-}
-.note-checklist-item {
-  display: flex; align-items: center; gap: 10px; padding: 6px 0;
+.note-editor-item {
+  display: flex; align-items: center; gap: 10px; padding: 7px 0;
   border-bottom: 1px solid rgba(0,0,0,.05);
 }
-.dark .note-checklist-item { border-bottom-color: rgba(255,255,255,.05) }
-.note-checklist-item.done { opacity: .6 }
-.note-checklist-text { flex: 1; font-size: .95rem; color: var(--text) }
-.note-checklist-item.done .note-checklist-text { text-decoration: line-through; color: var(--text-muted) }
-.note-checklist-del {
-  background: none; border: none; color: var(--text-muted); cursor: pointer;
-  font-size: .8rem; padding: 2px 4px; opacity: 0; transition: opacity .2s;
-}
-.note-checklist-item:hover .note-checklist-del { opacity: 1 }
+.dark .note-editor-item { border-bottom-color: rgba(255,255,255,.05) }
+.note-editor-item.done { opacity: .6 }
 
-/* Note card checklist display */
-.note-card-checklist { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 }
-.note-card-check-item {
+/* Single CSS circle dot — no text character */
+.note-item-dot {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 1.8px solid var(--text-muted); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: .68rem; font-weight: 700; color: var(--text-muted);
+  transition: all .18s; user-select: none;
+}
+.note-item-dot:hover { border-color: var(--green) }
+.note-item-dot.checked {
+  background: var(--green); border-color: var(--green); color: #fff;
+}
+.note-item-dot.checked::after { content: '✓'; font-size: .65rem }
+.note-item-dot.numbered { font-size: .68rem }
+.note-item-dot.numbered.checked::after { content: '✓' }
+
+.note-item-text {
+  flex: 1; font-size: .93rem; color: var(--text); line-height: 1.4;
+}
+.note-editor-item.done .note-item-text { text-decoration: line-through; color: var(--text-muted) }
+.note-item-del {
+  background: none; border: none; color: var(--text-muted); cursor: pointer;
+  font-size: .75rem; padding: 2px 5px; opacity: 0; transition: opacity .15s; flex-shrink: 0;
+}
+.note-editor-item:hover .note-item-del { opacity: 1 }
+
+/* Add item row */
+.note-item-add-row {
+  display: flex; align-items: center; gap: 6px; padding: 10px 0 4px; margin-top: 4px;
+}
+.note-addtype-btn {
+  width: 26px; height: 26px; border-radius: 6px; border: 1.5px solid var(--border);
+  background: none; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: all .15s;
+}
+.note-addtype-btn.active { border-color: var(--accent); background: var(--accent-soft) }
+.note-addtype-btn:hover { border-color: var(--accent) }
+.note-addtype-circle {
+  width: 12px; height: 12px; border-radius: 50%;
+  border: 1.8px solid currentColor; display: block;
+  color: var(--text-muted);
+}
+.note-addtype-btn.active .note-addtype-circle { color: var(--accent) }
+.note-addtype-num { font-size: .75rem; font-weight: 700; color: var(--text-muted) }
+.note-addtype-btn.active .note-addtype-num { color: var(--accent) }
+.note-item-input {
+  flex: 1; border: none; background: transparent; color: var(--text);
+  font-size: .93rem; outline: none; font-family: inherit;
+}
+.note-item-input::placeholder { color: var(--text-muted) }
+.note-item-add-btn {
+  background: var(--accent); color: #fff; border: none; border-radius: 50%;
+  width: 22px; height: 22px; font-size: .9rem; cursor: pointer; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* Note card item display */
+.note-card-items { display: flex; flex-direction: column; gap: 5px; margin: 6px 0 2px }
+.note-card-item {
   display: flex; align-items: center; gap: 7px; cursor: pointer;
 }
-.note-card-check-dot {
-  width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--text-muted);
+.note-card-dot {
+  width: 13px; height: 13px; border-radius: 50%;
+  border: 1.5px solid var(--text-muted); flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  font-size: .6rem; flex-shrink: 0; color: var(--text-muted);
+  font-size: .58rem; font-weight: 700; color: var(--text-muted); transition: all .15s;
 }
-.note-card-check-dot.checked { background: var(--green); border-color: var(--green); color: #fff }
-.note-card-check-text { font-size: .8rem; color: var(--text-muted); line-height: 1.4 }
-.note-card-check-item.done .note-card-check-text { text-decoration: line-through }
-.note-card-check-more { font-size: .72rem; color: var(--text-muted); padding-left: 23px }
+.note-card-dot.checked { background: var(--green); border-color: var(--green); color: #fff }
+.note-card-dot.checked::after { content: '✓'; font-size: .55rem }
+.note-card-dot.numbered { font-size: .6rem }
+.note-card-dot.numbered.checked::after { content: '✓' }
+.note-card-item-text { font-size: .78rem; color: var(--text-muted); line-height: 1.4 }
+.note-card-item.done .note-card-item-text { text-decoration: line-through }
+.note-card-more { font-size: .7rem; color: var(--text-muted); padding-left: 20px }
 
 /* Note editor */
 .note-editor { padding: 0 !important; display: flex; flex-direction: column }
@@ -1076,10 +1105,12 @@ input, select { font-family: inherit }
 }
 .note-content-input {
   width: 100%; border: none; background: transparent; color: var(--text);
-  font-size: .95rem; line-height: 1.7; padding: 8px 16px 32px;
-  outline: none; resize: none; font-family: inherit; flex: 1;
-  min-height: calc(100vh - 200px);
+  font-size: .95rem; line-height: 1.7; padding: 6px 16px 8px;
+  outline: none; resize: none; font-family: inherit;
+  min-height: 80px;
+  border-bottom: 1px solid rgba(0,0,0,.06);
 }
+.dark .note-content-input { border-bottom-color: rgba(255,255,255,.06) }
 
 /* ─── Responsive ─────────────────────────────────────────────────────────────── */
 @media (min-width: 520px) {
