@@ -1350,8 +1350,40 @@ export default function App() {
     <div className="app"><div className="splash"><div className="splash-logo">⏳</div><div className="splash-name">TimeFlow</div></div></div>
   )
 
+  const navItems = [['timer','⏱',t(lang,'timer')],['tasks','📋',t(lang,'tasks')],['notes','💡',t(lang,'notes')],['stats','📊',t(lang,'stats')]]
+
   return (
     <div className={`app ${dark?'dark':''}`}>
+
+      {/* ── Desktop sidebar (hidden on mobile) ── */}
+      <aside className="desktop-sidebar">
+        <div className="sidebar-brand">
+          <span className="sidebar-logo-icon">⏳</span>
+          <div>
+            <div className="sidebar-logo-name">TimeFlow</div>
+            <div className="sidebar-today-row">{t(lang,'todayTotal')} <strong>{fmtH(todayTotal)}</strong></div>
+          </div>
+        </div>
+        <nav className="sidebar-nav">
+          {navItems.map(([k,ic,lb]) => (
+            <button key={k} className={`sidebar-nav-btn ${tab===k?'active':''}`} onClick={()=>setTab(k)}>
+              <span className="sidebar-nav-ic">{ic}</span>
+              <span className="sidebar-nav-lb">{lb}</span>
+            </button>
+          ))}
+        </nav>
+        <div className="sidebar-spacer" />
+        <div className="sidebar-footer">
+          <button className="lang-btn" onClick={()=>setLang(l=>l==='zh'?'en':'zh')}>{lang==='zh'?'EN':'中'}</button>
+          <button className="dark-btn" onClick={()=>setDark(d=>!d)}>{dark?'☀️':'🌙'}</button>
+          {user
+            ? <button className="avatar-btn synced" onClick={()=>{if(confirm(`退出登录？\n(${user.email})`))logout()}} title={`已同步：${user.email}`}>{(user.email?.[0]??'?').toUpperCase()}</button>
+            : <button className="sync-btn" onClick={()=>setShowLogin(true)} title="登录以同步数据">☁️</button>
+          }
+        </div>
+      </aside>
+
+      {/* ── Mobile header (hidden on desktop) ── */}
       <header className="app-header">
         <div className="header-inner">
           <div>
@@ -1386,8 +1418,9 @@ export default function App() {
         {tab==='stats' && <StatsView logs={logs} onDeleteLog={onDeleteLog} tasks={tasks} lang={lang} />}
       </main>
 
+      {/* ── Mobile bottom nav (hidden on desktop) ── */}
       <nav className="bottom-nav">
-        {[['timer','⏱',t(lang,'timer')],['tasks','📋',t(lang,'tasks')],['notes','💡',t(lang,'notes')],['stats','📊',t(lang,'stats')]].map(([k,ic,lb])=>(
+        {navItems.map(([k,ic,lb])=>(
           <button key={k} className={`nav-btn ${tab===k?'active':''}`} onClick={()=>setTab(k)}>
             <span className="nav-ic">{ic}</span><span className="nav-lb">{lb}</span>
           </button>
