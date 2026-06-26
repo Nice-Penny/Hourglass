@@ -566,6 +566,13 @@ function TaskPicker({ tasks, value, onChange, lang, disabled }) {
 }
 
 // ─── Timer View ───────────────────────────────────────────────────────────────
+const TIMER_KEY = '_timerSession'
+function saveTimerSession(startTs, mode, category, desc, linkedTask) {
+  try { localStorage.setItem(TIMER_KEY, JSON.stringify({ startTs, mode, category, desc, linkedTask })) } catch {}
+}
+function clearTimerSession() { try { localStorage.removeItem(TIMER_KEY) } catch {} }
+function loadTimerSession() { try { return JSON.parse(localStorage.getItem(TIMER_KEY)) } catch { return null } }
+
 function TimerView({ logs, onSave, tasks, templates, setTemplates, lang }) {
   const [mode, setMode]           = useState('stopwatch')
   const [running, setRunning]     = useState(false)
@@ -578,6 +585,7 @@ function TimerView({ logs, onSave, tasks, templates, setTemplates, lang }) {
   const [pomRemain, setPomRemain] = useState(POMODORO_WORK)
   const [toast, setToast]         = useState(null)
   const [focusMode, setFocusMode] = useState(false)
+  const [recovered, setRecovered] = useState(null) // {elapsed, desc} when timer is restored
 
   const startTsRef   = useRef(null)
   const ivRef        = useRef(null)
@@ -596,6 +604,37 @@ function TimerView({ logs, onSave, tasks, templates, setTemplates, lang }) {
   useEffect(() => { categoryRef.current = category },   [category])
   useEffect(() => { descRef.current     = desc },       [desc])
   useEffect(() => { linkedTaskRef.current = linkedTask }, [linkedTask])
+
+  // ── Restore timer on mount (handles page killed while running) ──
+  useEffect(() => {
+    const s = loadTimerSession()
+    if (!s || s.mode !== 'stopwatch' || !s.startTs) return
+    const sec = Math.floor((Date.now() - s.startTs) / 1000)
+    if (sec < 5 || sec > 86400) { clearTimerSession(); return }
+    // Restore paused state — user can save or reset
+    startTsRef.current = s.startTs
+    setElapsed(sec)
+    if (s.category) { setCategory(s.category); categoryRef.current = s.category }
+    if (s.desc)     { setDesc(s.desc);         descRef.current     = s.desc     }
+    if (s.linkedTask !== undefined) { setLinkedTask(s.linkedTask); linkedTaskRef.current = s.linkedTask }
+    setRecovered({ elapsed: sec, desc: s.desc })
+    clearTimerSession()
+  }, [])
+
+  // ── Persist timer state when page goes background / is killed ──
+  useEffect(() => {
+    const persist = () => {
+      if (!startTsRef.current) return
+      saveTimerSession(startTsRef.current, modeRef.current, categoryRef.current, descRef.current, linkedTaskRef.current)
+    }
+    const onVisChange = () => { if (document.hidden) persist() }
+    document.addEventListener('visibilitychange', onVisChange)
+    window.addEventListener('pagehide', persist)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisChange)
+      window.removeEventListener('pagehide', persist)
+    }
+  }, [])
 
   const getPomTarget = phase =>
     phase === 'work' ? POMODORO_WORK : phase === 'longbreak' ? POMODORO_LONG_BREAK : POMODORO_BREAK
@@ -661,13 +700,22 @@ function TimerView({ logs, onSave, tasks, templates, setTemplates, lang }) {
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [])
 
-  const start = () => { unlockAudio(); startTsRef.current = Date.now(); setRunning(true) }
+  const start = () => {
+    unlockAudio()
+    // If elapsed > 0 (resumed after recovery), adjust startTs so tick() continues from where it left off
+    const ts = elapsed > 0 ? Date.now() - elapsed * 1000 : Date.now()
+    startTsRef.current = ts
+    saveTimerSession(ts, mode, category, desc, linkedTask)
+    setRunning(true); setRecovered(null)
+  }
   const stop  = () => {
-    setRunning(false); setFocusMode(false)
+    clearTimerSession()
+    setRunning(false); setFocusMode(false); setRecovered(null)
     if (mode === 'stopwatch' && elapsed > 0) { doSave(elapsed, category); setElapsed(0); setDesc(''); startTsRef.current = null }
   }
   const reset = () => {
-    setRunning(false); setElapsed(0); setFocusMode(false); startTsRef.current = null
+    clearTimerSession()
+    setRunning(false); setElapsed(0); setFocusMode(false); startTsRef.current = null; setRecovered(null)
     if (mode === 'pomodoro') { setPomPhase('work'); pomPhaseRef.current='work'; setPomRemain(POMODORO_WORK); setPomCount(0); pomCountRef.current=0 }
   }
   const switchMode = m => { reset(); setMode(m); modeRef.current = m }
@@ -691,6 +739,18 @@ function TimerView({ logs, onSave, tasks, templates, setTemplates, lang }) {
       {toast && (
         <div className="toast" style={{ background: toast.color }}>
           <span className="toast-icon">{toast.icon}</span><span>{toast.msg}</span>
+        </div>
+      )}
+
+      {recovered && (
+        <div className="recovery-banner">
+          <span>⚠️ {lang==='zh'
+            ? `检测到未保存的计时记录（${fmt(recovered.elapsed)}）${recovered.desc?' — '+recovered.desc:''}，已暂停恢复，请继续或保存`
+            : `Recovered unsaved timer (${fmt(recovered.elapsed)})${recovered.desc?' — '+recovered.desc:''} — continue or save`}
+          </span>
+          <button className="recovery-dismiss" onClick={() => { clearTimerSession(); setElapsed(0); startTsRef.current=null; setRecovered(null) }}>
+            {lang==='zh'?'放弃':'Discard'}
+          </button>
         </div>
       )}
 
@@ -1253,14 +1313,19 @@ export default function App() {
     return onAuthStateChanged(auth, u => setUser(u ?? null))
   }, [])
 
+  // cloudDataReady: true once Firebase has sent at least one snapshot.
+  // Prevents saving empty cloud state BEFORE data loads and overwriting real data.
+  const cloudDataReady = useRef(false)
+
   useEffect(() => {
-    if (!user) return
+    if (!user) { cloudDataReady.current = false; return }
     return subscribeUserData(user.uid, data => {
-      if (data.timeLogs   !== undefined) setLogs(data.timeLogs)
+      cloudDataReady.current = true
+      if (data.timeLogs   !== undefined) setCloudLogs(data.timeLogs)
       if (data.tasks2     !== undefined) setCloudTasks(data.tasks2)
       if (data.templates  !== undefined) setCloudTemplates(data.templates)
       if (data.notes      !== undefined) setCloudNotes(data.notes)
-      if (data.darkMode   !== undefined) setDark(data.darkMode)
+      if (data.darkMode   !== undefined) setCloudDark(data.darkMode)
       if (data.lang       !== undefined) setCloudLang(data.lang)
     })
   }, [user])
@@ -1269,6 +1334,8 @@ export default function App() {
   useEffect(() => {
     if (!user) return
     if (!initialized.current) { initialized.current = true; return }
+    // Guard: don't overwrite cloud with empty state before first Firebase snapshot arrives
+    if (isCloud && !cloudDataReady.current) return
     saveUserData(user.uid, { timeLogs: logs, tasks2: tasks, templates, notes, darkMode: dark, lang })
   }, [logs, tasks, templates, notes, dark, lang])
 
