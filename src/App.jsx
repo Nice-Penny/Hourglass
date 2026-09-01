@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import './App.css'
-import { auth, login, register, logout, subscribeUserData, saveUserData, subscribeLogs, addLog, deleteLogDoc, migrateLogsToSubcollection, onAuthStateChanged, FIREBASE_CONFIGURED } from './firebase.js'
+import { auth, login, register, logout, subscribeUserData, saveUserData, flushUserData, subscribeLogs, addLog, deleteLogDoc, migrateLogsToSubcollection, fetchAllLogs, addLogsBatch, onAuthStateChanged, FIREBASE_CONFIGURED } from './firebase.js'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const CATEGORIES = [
@@ -2378,16 +2378,23 @@ export default function App() {
 
   // cloudDataReady: true once Firebase has sent at least one snapshot.
   const cloudDataReady = useRef(false)
+  const cloudDocExists = useRef(false)
   const migratedRef    = useRef(false)
+  const reconciledRef  = useRef(false)
+  const [cloudReady, setCloudReady] = useState(false)
   const [syncError, setSyncError] = useState(false)
+  const [online, setOnline] = useState(() => typeof navigator === 'undefined' || navigator.onLine !== false)
 
   // Main user doc holds tasks / notes / settings. LOGS live in their own subcollection
   // (users/{uid}/logs) so image-heavy notes can never push the doc past the 1MB limit
   // and cause records to silently fail to save.
   useEffect(() => {
-    if (!user) { cloudDataReady.current = false; migratedRef.current = false; return }
-    return subscribeUserData(user.uid, data => {
+    if (!user) { cloudDataReady.current = false; cloudDocExists.current = false; migratedRef.current = false; reconciledRef.current = false; setCloudReady(false); return }
+    return subscribeUserData(user.uid, (data, exists) => {
       cloudDataReady.current = true
+      cloudDocExists.current = exists
+      setCloudReady(true)
+      if (!data) return   // new account: no doc yet, but we are now "loaded"
       if (data.deletedLogs !== undefined) setCloudDeleted(data.deletedLogs)
       if (data.tasks2      !== undefined) setCloudTasks(data.tasks2)
       if (data.templates   !== undefined) setCloudTemplates(data.templates)
@@ -2422,16 +2429,84 @@ export default function App() {
     if (!user) return
     if (!initialized.current) { initialized.current = true; return }
     if (isCloud && !cloudDataReady.current) return
-    // Build a merge payload that NEVER overwrites a populated field with an empty array.
-    // (Prevents load-races / partial docs from wiping tasks or notes across devices.)
-    const payload = { darkMode: dark, lang }
-    if (tasks.length)     payload.tasks2 = tasks
-    if (notes.length)     payload.notes = notes
-    if (templates.length) payload.templates = templates
-    if (deleted.length)   payload.deletedLogs = deleted
+    // Empty arrays ARE written: reaching here means a snapshot has already
+    // loaded (cloudDataReady), so an empty list is a real user deletion rather
+    // than an un-loaded state. Omitting them meant you could never delete your
+    // last task or note — the cloud copy just came straight back.
+    const payload = {
+      darkMode: dark, lang,
+      tasks2: tasks, notes, templates, deletedLogs: deleted,
+    }
     // NOTE: timeLogs intentionally NOT written here — logs sync via the subcollection.
     saveUserData(user.uid, payload, () => setSyncError(true))
   }, [tasks, templates, notes, dark, lang, deleted])
+
+  // ── Online/offline tracking + flush pending writes before the page dies ──
+  useEffect(() => {
+    const up = () => setOnline(true), down = () => setOnline(false)
+    window.addEventListener('online', up)
+    window.addEventListener('offline', down)
+    // Mobile browsers freeze or kill a backgrounded tab well inside the 600ms
+    // write debounce, so the last edit before an app switch was routinely lost.
+    const flush = () => { try { flushUserData() } catch {} }
+    const onVis = () => { if (document.hidden) flush() }
+    document.addEventListener('visibilitychange', onVis)
+    window.addEventListener('pagehide', flush)
+    return () => {
+      window.removeEventListener('online', up)
+      window.removeEventListener('offline', down)
+      document.removeEventListener('visibilitychange', onVis)
+      window.removeEventListener('pagehide', flush)
+    }
+  }, [])
+
+  // ── One-shot reconcile per login ──────────────────────────────────────────
+  // Records written while the old undefined-field bug was live never reached
+  // Firestore, so they exist only in the localStorage of whichever device made
+  // them. On first load after signing in, push anything the cloud is missing,
+  // and seed a brand-new account from local data instead of starting empty.
+  const [backfillNote, setBackfillNote] = useState(0)
+  useEffect(() => {
+    if (!isCloud || !cloudReady || reconciledRef.current) return
+    reconciledRef.current = true
+    const readLS = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d } catch { return d } }
+    ;(async () => {
+      try {
+        const localLogs = readLS('timeLogs', [])
+        const tomb      = new Set(readLS('deletedLogs', []).map(String))
+        const cloudLogs = await fetchAllLogs(user.uid)
+        const cloudIds  = new Set(cloudLogs.map(l => String(l.id)))
+        const missing = (Array.isArray(localLogs) ? localLogs : [])
+          .filter(l => l && l.id != null && !cloudIds.has(String(l.id)) && !tomb.has(String(l.id)))
+          // Normalise: these are exactly the records that carried undefined
+          // fields, which is why they failed to upload in the first place.
+          .map(l => ({
+            ...l,
+            taskId: l.taskId || '', subTaskId: l.subTaskId || '',
+            source: l.source || 'timer',
+          }))
+        if (missing.length) {
+          await addLogsBatch(user.uid, missing)
+          setCloudLogs(prev => mergeLogs(prev, missing, cloudDeletedRef.current))
+          setBackfillNote(missing.length)
+        }
+        // Brand-new account: carry over whatever was built up while signed out.
+        if (!cloudDocExists.current) {
+          const seed = {}
+          const lt = readLS('tasks2', []), ln = readLS('notes', []), lp = readLS('templates', [])
+          if (lt.length) seed.tasks2    = lt
+          if (ln.length) seed.notes     = ln
+          if (lp.length) seed.templates = lp
+          if (Object.keys(seed).length) {
+            saveUserData(user.uid, seed, () => setSyncError(true))
+            if (lt.length) setCloudTasks(lt)
+            if (ln.length) setCloudNotes(ln)
+            if (lp.length) setCloudTemplates(lp)
+          }
+        }
+      } catch { setSyncError(true) }
+    })()
+  }, [isCloud, cloudReady, user])
 
   // ── Local daily backup (last 7 days) for recovery ──
   useEffect(() => {
@@ -2581,6 +2656,23 @@ export default function App() {
             <button className="pwa-install-btn" onClick={async()=>{pwaPrompt.prompt();await pwaPrompt.userChoice;setPwaPrompt(null)}}>{t(lang,'install')}</button>
             <button className="pwa-dismiss-btn" onClick={()=>setPwaDismiss(true)}>✕</button>
           </div>
+        </div>
+      )}
+
+      {isCloud && !online && (
+        <div className="sync-info-banner offline">
+          <span>📴 {lang==='zh'
+            ? '当前离线，改动已保存在本机，联网后会自动同步。'
+            : 'Offline — changes are saved on this device and will sync automatically when you reconnect.'}</span>
+        </div>
+      )}
+
+      {backfillNote > 0 && (
+        <div className="sync-info-banner">
+          <span>☁️ {lang==='zh'
+            ? `已补传 ${backfillNote} 条此前未同步的记录`
+            : `Backfilled ${backfillNote} record${backfillNote>1?'s':''} that had never synced`}</span>
+          <button onClick={()=>setBackfillNote(0)}>✕</button>
         </div>
       )}
 

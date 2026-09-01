@@ -9,6 +9,7 @@ import {
 import {
   initializeFirestore, doc, onSnapshot, setDoc, deleteDoc,
   collection, query, orderBy, limit, writeBatch, deleteField,
+  getDocs, persistentLocalCache, persistentMultipleTabManager,
 } from 'firebase/firestore'
 
 const {
@@ -37,7 +38,23 @@ if (FIREBASE_CONFIGURED) {
   // ignoreUndefinedProperties: without it, ANY object containing an `undefined`
   // field makes setDoc() throw *synchronously* — which skips the caller's
   // .catch(), aborts the calling function mid-way, and silently kills sync.
-  db   = initializeFirestore(app, { ignoreUndefinedProperties: true })
+  //
+  // persistentLocalCache: writes made while offline (or on a phone with a flaky
+  // connection, or one the OS kills mid-request) are journalled to IndexedDB and
+  // replayed automatically once connectivity returns. Without it a failed write
+  // was simply lost, which is how records ended up on one device only.
+  const settings = { ignoreUndefinedProperties: true }
+  try {
+    db = initializeFirestore(app, {
+      ...settings,
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+    })
+  } catch (err) {
+    // Private browsing / storage disabled / unsupported browser — still usable,
+    // just without the offline queue.
+    console.warn('Offline persistence unavailable, falling back to memory cache', err)
+    db = initializeFirestore(app, settings)
+  }
 }
 
 export { auth, db, onAuthStateChanged }
@@ -46,23 +63,43 @@ export const login    = (email, pw) => signInWithEmailAndPassword(auth, email, p
 export const register = (email, pw) => createUserWithEmailAndPassword(auth, email, pw)
 export const logout   = ()          => signOut(auth)
 
-export function subscribeUserData(uid, callback) {
+export function subscribeUserData(uid, callback, onError) {
   if (!FIREBASE_CONFIGURED) return () => {}
-  return onSnapshot(doc(db, 'users', uid), snap => {
-    if (snap.exists()) callback(snap.data())
-  })
+  return onSnapshot(doc(db, 'users', uid),
+    // `exists: false` still counts as loaded — a new account has no doc yet, and
+    // gating readiness on existence meant its data was never saved at all.
+    snap => callback(snap.exists() ? snap.data() : null, snap.exists()),
+    err => { try { onError && onError(err) } catch {} })
 }
 
 let writeTimer = null
+let pendingWrite = null   // { uid, data, onError } queued behind the debounce
+
+function commitUserData({ uid, data, onError }) {
+  try {
+    return setDoc(doc(db, 'users', uid), data, { merge: true })
+      .catch(err => { try { onError && onError(err) } catch {} })
+  } catch (err) { try { onError && onError(err) } catch {} }
+}
+
 export function saveUserData(uid, data, onError) {
   if (!FIREBASE_CONFIGURED) return
   clearTimeout(writeTimer)
+  pendingWrite = { uid, data, onError }
   writeTimer = setTimeout(() => {
-    try {
-      setDoc(doc(db, 'users', uid), data, { merge: true })
-        .catch(err => { try { onError && onError(err) } catch {} })
-    } catch (err) { try { onError && onError(err) } catch {} }
+    const w = pendingWrite; pendingWrite = null
+    if (w) commitUserData(w)
   }, 600)
+}
+
+// Force out a debounced write immediately. Mobile browsers freeze or kill a
+// backgrounded page well inside the 600ms debounce window, so without this the
+// most recent edit before switching apps was routinely dropped.
+export function flushUserData() {
+  if (!FIREBASE_CONFIGURED || !pendingWrite) return
+  clearTimeout(writeTimer)
+  const w = pendingWrite; pendingWrite = null
+  commitUserData(w)
 }
 
 // ─── Time logs stored as a subcollection (avoids the 1MB single-doc limit) ──────
@@ -101,4 +138,27 @@ export async function migrateLogsToSubcollection(uid, timeLogs) {
     await batch.commit()
   }
   await setDoc(doc(db, 'users', uid), { timeLogs: deleteField() }, { merge: true })
+}
+
+// Read every log id already in the cloud, so a reconcile can tell which local
+// records never made it there.
+export async function fetchAllLogs(uid) {
+  if (!FIREBASE_CONFIGURED) return []
+  const snap = await getDocs(collection(db, 'users', uid, 'logs'))
+  return snap.docs.map(d => d.data())
+}
+
+// Upload many logs at once, chunked to respect the 500-op batch limit.
+export async function addLogsBatch(uid, logs) {
+  if (!FIREBASE_CONFIGURED || !Array.isArray(logs) || logs.length === 0) return 0
+  let written = 0
+  for (let i = 0; i < logs.length; i += 400) {
+    const batch = writeBatch(db)
+    logs.slice(i, i + 400).forEach(log => {
+      if (log && log.id != null) batch.set(doc(db, 'users', uid, 'logs', String(log.id)), log)
+    })
+    await batch.commit()
+    written += Math.min(400, logs.length - i)
+  }
+  return written
 }

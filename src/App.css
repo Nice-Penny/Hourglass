@@ -2309,3 +2309,20 @@ body { letter-spacing: -.1px }
 .dur-row input[type="date"], .dur-row input[type="time"] { text-align: left }
 .dur-unit { font-size: .85rem; color: var(--text-muted); flex-shrink: 0 }
 .form-err { margin-top: 6px; font-size: .8rem; color: #ef4444; font-weight: 600 }
+
+/* ─── Sync status banners (offline queue, backfill notice) ─────────────────── */
+.sync-info-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 14px; margin: 0 0 10px; border-radius: 12px;
+  font-size: .84rem; font-weight: 600; line-height: 1.35;
+  background: rgba(99,102,241,.12); color: #4338ca;
+  border: 1px solid rgba(99,102,241,.28);
+}
+.sync-info-banner.offline { background: rgba(107,114,128,.14); color: #4b5563; border-color: rgba(107,114,128,.3) }
+.sync-info-banner button {
+  background: rgba(0,0,0,.08); border: none; color: inherit;
+  width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; cursor: pointer;
+}
+.dark .sync-info-banner         { background: rgba(129,140,248,.16); color: #c7d2fe; border-color: rgba(129,140,248,.32) }
+.dark .sync-info-banner.offline { background: rgba(148,163,184,.14); color: #cbd5e1; border-color: rgba(148,163,184,.3) }
+.dark .sync-info-banner button  { background: rgba(255,255,255,.14) }
